@@ -1,0 +1,110 @@
+name: Customer Loyalty Agent Workflow
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/app/agents/customerLoyaltyAgent_initializer.py'
+      - 'src/prompts/CustomerLoyaltyAgentPrompt.txt'
+      - 'src/app/tools/discountLogic.py'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  customer-loyalty-agent:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install azure-ai-projects azure-identity python-dotenv
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          auth-type: SERVICE_PRINCIPAL
+
+      - name: Create .env file from secrets
+        run: |
+          cat > .env << EOF
+          FOUNDRY_ENDPOINT=${{ secrets.FOUNDRY_ENDPOINT }}
+          gpt_deployment=${{ secrets.GPT_DEPLOYMENT }}
+          EOF
+
+      - name: Validate file changes
+        id: validate
+        run: |
+          echo "Checking which files triggered the workflow..."
+          git diff --name-only HEAD~1 HEAD > changed_files.txt || true
+          
+          if grep -q "customerLoyaltyAgent_initializer.py" changed_files.txt; then
+            echo "agent_file_changed=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if grep -q "CustomerLoyaltyAgentPrompt.txt" changed_files.txt; then
+            echo "prompt_file_changed=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if grep -q "discountLogic.py" changed_files.txt; then
+            echo "tool_file_changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Execute Customer Loyalty Agent Initializer
+        run: |
+          python src/app/agents/customerLoyaltyAgent_initializer.py
+        env:
+          FOUNDRY_ENDPOINT: ${{ secrets.FOUNDRY_ENDPOINT }}
+          gpt_deployment: ${{ secrets.GPT_DEPLOYMENT }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+
+      - name: Generate job summary
+        if: always()
+        run: |
+          echo "## Customer Loyalty Agent Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Date:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Files Monitored:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`src/app/agents/customerLoyaltyAgent_initializer.py\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`src/prompts/CustomerLoyaltyAgentPrompt.txt\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`src/app/tools/discountLogic.py\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ ${{ job.status }} = "success" ]; then
+            echo "**Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status:** ❌ Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-logs
+          path: |
+            changed_files.txt
+          retention-days: 7
