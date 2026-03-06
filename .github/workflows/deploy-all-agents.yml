@@ -1,0 +1,51 @@
+name: Deploy All Agents to Foundry
+
+on:
+  # Manual trigger only — use this to deploy all agents at once
+  workflow_dispatch:
+
+jobs:
+  deploy-all-agents:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create .env file from secret
+        run: 'echo "$ENV" > src/.env'
+        shell: bash
+        env:
+          ENV: ${{ secrets.ENV }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r src/requirements.txt
+
+      - name: Login via Azure CLI
+        uses: azure/login@v2.1.1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Cora (Shopper) agent
+        run: cd src/ && python app/agents/shopperAgent_initializer.py
+
+      - name: Deploy Cart Manager agent
+        run: cd src/ && python app/agents/cartManagerAgent_initializer.py
+
+      - name: Deploy Customer Loyalty agent
+        run: cd src/ && python app/agents/customerLoyaltyAgent_initializer.py
+
+      - name: Deploy Interior Designer agent
+        run: cd src/ && python app/agents/interiorDesignAgent_initializer.py
+
+      - name: Deploy Inventory agent
+        run: cd src/ && python app/agents/inventoryAgent_initializer.py
+
+      - name: Deploy Handoff Service agent
+        run: cd src/ && python app/agents/handoffAgent_initializer.py

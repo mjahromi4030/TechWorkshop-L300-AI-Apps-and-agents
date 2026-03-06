@@ -54,6 +54,7 @@ out/
 *.azuredevops
 
 # Github
-.github/
+# .github/  ← removed: need to push workflow files
+!.github/workflows/
 parameters.json
 .azure
