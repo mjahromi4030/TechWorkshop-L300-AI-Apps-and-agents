@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>AI Agents, Docker &amp; Real-Time Chat — A Textbook Guide</title>
+<style>
+body { font-family: Segoe UI, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; line-height: 1.7; color: #1a1a1a; }
+h1 { color: #1a3a5c; border-bottom: 3px solid #4a90d9; padding-bottom: 10px; }
+h2 { color: #2c5282; border-bottom: 2px solid #bee3f8; padding-bottom: 8px; margin-top: 50px; }
+h3 { color: #2b6cb0; margin-top: 35px; }
+h4 { color: #3182ce; }
+code { background: #f0f4f8; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; color: #c7254e; }
+pre { background: #1e293b; color: #e2e8f0; padding: 16px 20px; border-radius: 8px; overflow-x: auto; line-height: 1.5; }
+pre code { background: none; color: #e2e8f0; padding: 0; font-size: 0.85em; }
+table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+th { background: #2c5282; color: white; padding: 10px 14px; text-align: left; }
+td { border: 1px solid #e2e8f0; padding: 8px 14px; }
+tr:nth-child(even) { background: #f7fafc; }
+blockquote { border-left: 4px solid #4a90d9; margin: 20px 0; padding: 10px 20px; background: #ebf8ff; }
+strong { color: #2d3748; }
+hr { border: none; border-top: 2px solid #e2e8f0; margin: 40px 0; }
+a { color: #3182ce; }
+@media print {
+    body { max-width: 100%; margin: 0; }
+    pre { background: #f0f4f8 !important; color: #333 !important; border: 1px solid #ccc; }
+    pre code { color: #333 !important; }
+    th { background: #555 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    tr:nth-child(even) { background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    h1, h2, h3, h4 { page-break-after: avoid; }
+    pre, table { page-break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<h1 id="ai-agents-docker-real-time-chat-a-textbook-guide">AI Agents, Docker &amp; Real-Time Chat — A Textbook Guide</h1>
+<p>A conceptual companion to the Zava Multi-Agent Chat Application. Read this to understand the <strong>theory and principles</strong> behind the code before (or alongside) the code-focused <a href="TUTORIAL.md">TUTORIAL.md</a>.</p>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#chapter-1-understanding-large-language-models">Chapter 1: Understanding Large Language Models</a></li>
+<li><a href="#chapter-2-from-llm-to-ai-agent">Chapter 2: From LLM to AI Agent</a></li>
+<li><a href="#chapter-3-function-calling--giving-agents-hands">Chapter 3: Function Calling — Giving Agents Hands</a></li>
+<li><a href="#chapter-4-structured-outputs--guaranteeing-response-formats">Chapter 4: Structured Outputs — Guaranteeing Response Formats</a></li>
+<li><a href="#chapter-5-multi-agent-systems--orchestration">Chapter 5: Multi-Agent Systems &amp; Orchestration</a></li>
+<li><a href="#chapter-6-the-model-context-protocol-mcp">Chapter 6: The Model Context Protocol (MCP)</a></li>
+<li><a href="#chapter-7-azure-ai-foundry--deploying-agents-to-the-cloud">Chapter 7: Azure AI Foundry — Deploying Agents to the Cloud</a></li>
+<li><a href="#chapter-8-prompt-engineering--the-art-of-agent-instructions">Chapter 8: Prompt Engineering — The Art of Agent Instructions</a></li>
+<li><a href="#chapter-9-docker--containerization">Chapter 9: Docker &amp; Containerization</a></li>
+<li><a href="#chapter-10-websockets-fastapi--real-time-communication">Chapter 10: WebSockets, FastAPI &amp; Real-Time Communication</a></li>
+<li><a href="#chapter-11-multimodal-ai--processing-text-and-images-together">Chapter 11: Multimodal AI — Processing Text and Images Together</a></li>
+<li><a href="#chapter-12-putting-it-all-together--the-zava-architecture">Chapter 12: Putting It All Together — The Zava Architecture</a></li>
+<li><a href="#glossary">Glossary</a></li>
+</ul>
+<hr />
+<h2 id="chapter-1-understanding-large-language-models">Chapter 1: Understanding Large Language Models</h2>
+<h3 id="what-is-an-llm">What Is an LLM?</h3>
+<p>A <strong>Large Language Model (LLM)</strong> is a type of artificial intelligence trained on massive amounts of text data — books, websites, code, conversations, and scientific papers. Through this training, the model learns patterns of language: grammar, facts, reasoning strategies, coding conventions, and even a degree of "common sense."</p>
+<p>When you send a message to an LLM like GPT-4o, it doesn't "think" the way humans do. Instead, it predicts what text should come next, token by token, based on the patterns it learned during training. Despite this seemingly simple mechanism, the results are remarkably sophisticated — the model can write essays, solve math problems, generate code, and carry on nuanced conversations.</p>
+<h3 id="key-properties-of-llms">Key Properties of LLMs</h3>
+<p><strong>Statelessness.</strong> An LLM has no memory between requests. Each time you send a message, the model starts fresh. It doesn't remember what you asked five minutes ago. If you want continuity in a conversation, you must send the entire conversation history with each request. This is a fundamental constraint that agent architectures must work around.</p>
+<p><strong>Context Window.</strong> Every LLM has a maximum number of tokens (roughly words) it can process in a single request. For GPT-4o, this is typically 128,000 tokens. The context window includes both the input (your prompt + conversation history) and the output (the model's response). If your conversation exceeds the context window, you must truncate or summarize older messages.</p>
+<p><strong>Non-Determinism.</strong> Given the same input, an LLM may produce different outputs each time. This is controlled by a parameter called <code>temperature</code>:
+- <strong>Temperature 0:</strong> Nearly deterministic — the model picks the most likely next token every time
+- <strong>Temperature 1:</strong> More creative and varied — the model samples from a broader distribution
+- For classification tasks (like the Handoff Service), you want low temperature; for creative tasks (like writing product descriptions), higher temperature is appropriate.</p>
+<p><strong>Training Data Cutoff.</strong> An LLM's knowledge is frozen at its training date. It doesn't know about events, products, or prices that changed after training. To provide current information, you must supply it through tools (like searching a product database) or by including the data in the prompt.</p>
+<h3 id="how-tokens-work">How Tokens Work</h3>
+<p>LLMs don't process text character by character. Instead, they break text into <strong>tokens</strong> — chunks that typically correspond to common words, word parts, or characters. For example:</p>
+<div class="codehilite"><pre><span></span><code>&quot;I want blue paint&quot; → [&quot;I&quot;, &quot; want&quot;, &quot; blue&quot;, &quot; paint&quot;]  (4 tokens)
+&quot;ChatGPT&quot;           → [&quot;Chat&quot;, &quot;G&quot;, &quot;PT&quot;]                 (3 tokens)
+</code></pre></div>
+
+<p>Understanding tokens matters because:
+- You're billed per token (input + output)
+- The context window is measured in tokens
+- Very long conversations consume more tokens, increasing cost and latency</p>
+<h3 id="the-completion-api">The Completion API</h3>
+<p>At the lowest level, interacting with an LLM is a single API call:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">Input</span><span class="o">:</span><span class="w">  </span><span class="n">System</span><span class="w"> </span><span class="n">prompt</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">User</span><span class="w"> </span><span class="n">message</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Conversation</span><span class="w"> </span><span class="n">history</span>
+<span class="n">Output</span><span class="o">:</span><span class="w"> </span><span class="n">Model</span><span class="err">&#39;</span><span class="n">s</span><span class="w"> </span><span class="n">response</span><span class="w"> </span><span class="o">(</span><span class="n">text</span><span class="o">,</span><span class="w"> </span><span class="n">or</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="n">call</span><span class="w"> </span><span class="n">request</span><span class="o">)</span>
+</code></pre></div>
+
+<p>The system prompt sets the stage (who the model is, what it should do), the conversation history provides context (what was discussed before), and the user message is the current request. The model processes all of this together and generates a response.</p>
+<p>This is the foundation that everything else builds on. Agents, tools, structured outputs, and multi-agent systems are all patterns built <em>on top of</em> this basic completion API.</p>
+<h3 id="in-the-zava-project-the-simplest-possible-llm-call">In the Zava Project: The Simplest Possible LLM Call</h3>
+<p>The file <code>src/app/tools/singleAgentExample.py</code> demonstrates this basic pattern — a raw LLM call with no agent framework:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># src/app/tools/singleAgentExample.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">openai</span><span class="w"> </span><span class="kn">import</span> <span class="n">AzureOpenAI</span>
+
+<span class="c1"># Initialize Azure OpenAI client</span>
+<span class="n">client</span> <span class="o">=</span> <span class="n">AzureOpenAI</span><span class="p">(</span>
+    <span class="n">azure_endpoint</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;gpt_endpoint&quot;</span><span class="p">),</span>
+    <span class="n">api_key</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;gpt_api_key&quot;</span><span class="p">),</span>
+    <span class="n">api_version</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;gpt_api_version&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_response</span><span class="p">(</span><span class="n">text_input</span><span class="p">):</span>
+    <span class="c1"># System prompt + User message → Completion</span>
+    <span class="n">chat_prompt</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;text&quot;</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;You are a helpful assistant working for Zava...&quot;</span><span class="p">}]</span>
+        <span class="p">},</span>
+        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">text_input</span><span class="p">}</span>
+    <span class="p">]</span>
+
+    <span class="n">completion</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="n">deployment</span><span class="p">,</span>
+        <span class="n">messages</span><span class="o">=</span><span class="n">chat_prompt</span><span class="p">,</span>
+        <span class="n">max_completion_tokens</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">completion</span><span class="o">.</span><span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">message</span><span class="o">.</span><span class="n">content</span>
+</code></pre></div>
+
+<p>Notice:
+- <code>messages</code> contains the system prompt and user message (the input)
+- <code>completion.choices[0].message.content</code> is the model's response (the output)
+- There's no memory, no tools, no structured output — just input → output</p>
+<hr />
+<h2 id="chapter-2-from-llm-to-ai-agent">Chapter 2: From LLM to AI Agent</h2>
+<h3 id="the-limitations-of-raw-llms">The Limitations of Raw LLMs</h3>
+<p>A raw LLM can answer questions based on its training data, but it can't:
+- Look up current product prices in a database
+- Check if an item is in stock
+- Generate images
+- Remember your previous conversation
+- Guarantee its response format</p>
+<p>An <strong>AI Agent</strong> is the layer we add around an LLM to overcome these limitations. Think of the LLM as a brain, and the agent as the body — it gives the brain eyes (image understanding), hands (tool use), memory (conversation threads), and a consistent personality (system prompt).</p>
+<h3 id="the-four-pillars-of-an-agent">The Four Pillars of an Agent</h3>
+<h4 id="1-system-prompt-identity">1. System Prompt (Identity)</h4>
+<p>The system prompt is the agent's job description. It defines:
+- <strong>Who</strong> the agent is: "You are Cora, a shopping assistant for Zava."
+- <strong>What</strong> it does: "Help customers find products, answer questions about home improvement."
+- <strong>How</strong> it responds: "Return responses in JSON format with answer, products, and cart fields."
+- <strong>What it refuses:</strong> "If asked about unrelated topics, politely redirect to DIY."</p>
+<p>Without a system prompt, an LLM is a general-purpose text generator. With one, it becomes a focused specialist. The quality of the system prompt is often the single biggest factor in an agent's usefulness.</p>
+<h4 id="2-tools-capabilities">2. Tools (Capabilities)</h4>
+<p>Tools give an agent the ability to interact with the outside world. A tool is typically defined by:
+- <strong>Name:</strong> What the tool is called (<code>mcp_product_recommendations</code>)
+- <strong>Description:</strong> What it does (in plain English, so the LLM can decide when to use it)
+- <strong>Parameters:</strong> What inputs it needs (as a JSON schema)
+- <strong>Implementation:</strong> The actual code that runs when the tool is called</p>
+<p>The LLM doesn't execute tools directly. It generates a structured request ("please call <code>mcp_product_recommendations</code> with question 'blue paint'"), and your application code intercepts this request, runs the actual function, and feeds the result back to the LLM.</p>
+<h4 id="3-memory-conversation-threads">3. Memory (Conversation Threads)</h4>
+<p>A conversation thread is a sequence of messages that gives the agent context. Each message has a role:
+- <strong>System:</strong> The system prompt (set once at the start)
+- <strong>User:</strong> Messages from the human
+- <strong>Assistant:</strong> Previous responses from the agent
+- <strong>Tool:</strong> Results from function calls</p>
+<p>By sending the full thread with each request, the agent appears to "remember" the conversation. In reality, it's re-reading the entire history every time — like an actor who re-reads the entire script before delivering each line.</p>
+<p>Conversation threads can be managed locally (in your application code) or remotely (in a service like Azure AI Foundry). This project uses Foundry-managed conversations.</p>
+<h4 id="4-structured-output-reliability">4. Structured Output (Reliability)</h4>
+<p>When an agent needs to return data that your code will parse (not just text for humans to read), you need <strong>structured outputs</strong>. This constrains the model's generation to produce valid JSON matching a specific schema — every field is present, every type is correct, every time.</p>
+<h3 id="agent-vs-chatbot-vs-assistant">Agent vs. Chatbot vs. Assistant</h3>
+<p>These terms are often used interchangeably, but they have nuanced differences:</p>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Chatbot</strong></td>
+<td>Any program that converses with humans (may be rule-based, no LLM)</td>
+</tr>
+<tr>
+<td><strong>Assistant</strong></td>
+<td>An LLM-powered chatbot with a system prompt and conversation history</td>
+</tr>
+<tr>
+<td><strong>Agent</strong></td>
+<td>An assistant that can also use tools, make decisions, and take actions</td>
+</tr>
+</tbody>
+</table>
+<p>In this project, the "single agent example" (<code>singleAgentExample.py</code>) is really an <strong>assistant</strong> — it has a system prompt and can converse, but it can't use tools. The Foundry-deployed agents (Cora, Cart Manager, etc.) are true <strong>agents</strong> — they can reason about when to call tools and chain multiple actions together.</p>
+<h3 id="in-the-zava-project-comparing-an-assistant-vs-an-agent">In the Zava Project: Comparing an Assistant vs. an Agent</h3>
+<p><strong>The Assistant</strong> (no tools, no Foundry) — <code>src/app/tools/singleAgentExample.py</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Direct call to Azure OpenAI — no Foundry, no tools</span>
+<span class="n">client</span> <span class="o">=</span> <span class="n">AzureOpenAI</span><span class="p">(</span><span class="n">azure_endpoint</span><span class="o">=</span><span class="n">endpoint</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="n">api_key</span><span class="p">,</span> <span class="n">api_version</span><span class="o">=</span><span class="n">api_version</span><span class="p">)</span>
+<span class="n">completion</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">deployment</span><span class="p">,</span> <span class="n">messages</span><span class="o">=</span><span class="n">chat_prompt</span><span class="p">)</span>
+<span class="k">return</span> <span class="n">completion</span><span class="o">.</span><span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">message</span><span class="o">.</span><span class="n">content</span>
+</code></pre></div>
+
+<p><strong>The Agent</strong> (tools + Foundry) — <code>src/app/agents/shopperAgent_initializer.py</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Agent deployed to Foundry with tools and a specialized prompt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">azure.ai.projects</span><span class="w"> </span><span class="kn">import</span> <span class="n">AIProjectClient</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">azure.ai.projects.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">PromptAgentDefinition</span>
+
+<span class="n">project_client</span> <span class="o">=</span> <span class="n">AIProjectClient</span><span class="p">(</span>
+    <span class="n">endpoint</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;FOUNDRY_ENDPOINT&quot;</span><span class="p">],</span>
+    <span class="n">credential</span><span class="o">=</span><span class="n">DefaultAzureCredential</span><span class="p">(),</span>
+<span class="p">)</span>
+
+<span class="c1"># Cora gets the product recommendations tool</span>
+<span class="n">functions</span> <span class="o">=</span> <span class="n">create_function_tool_for_agent</span><span class="p">(</span><span class="s2">&quot;cora&quot;</span><span class="p">)</span>
+
+<span class="n">initialize_agent</span><span class="p">(</span>
+    <span class="n">project_client</span><span class="o">=</span><span class="n">project_client</span><span class="p">,</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;gpt_deployment&quot;</span><span class="p">],</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cora&quot;</span><span class="p">,</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Cora - Zava Shopping Assistant&quot;</span><span class="p">,</span>
+    <span class="n">instructions</span><span class="o">=</span><span class="n">CORA_PROMPT</span><span class="p">,</span>   <span class="c1"># Loaded from prompts/ShopperAgentPrompt.txt</span>
+    <span class="n">tools</span><span class="o">=</span><span class="n">functions</span>              <span class="c1"># [mcp_product_recommendations]</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>The assistant can only generate text from its training data. The agent can search real product catalogs, check inventory, and generate images.</p>
+<hr />
+<h2 id="chapter-3-function-calling-giving-agents-hands">Chapter 3: Function Calling — Giving Agents Hands</h2>
+<h3 id="the-problem">The Problem</h3>
+<p>Imagine you ask an AI assistant: "Is Whispering Blue paint in stock?" The LLM doesn't have access to your inventory database. It could guess, but guessing is worse than not knowing. What you need is a way for the LLM to say: "I don't have this information, but I know where to get it — please check the inventory system for me."</p>
+<h3 id="how-function-calling-works">How Function Calling Works</h3>
+<p>Function calling is a structured protocol between your application and the LLM:</p>
+<p><strong>Step 1: Define Available Functions</strong></p>
+<p>You tell the model what functions exist, what they do, and what parameters they accept:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">FunctionTool</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;mcp_inventory_check&quot;</span><span class="p">,</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Check inventory for products&quot;</span><span class="p">,</span>
+    <span class="n">parameters</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;properties&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;product_list&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;items&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span><span class="p">},</span>
+                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;List of product IDs to check&quot;</span>
+            <span class="p">}</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;required&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;product_list&quot;</span><span class="p">]</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Step 2: The Model Decides to Call a Function</strong></p>
+<p>When the user asks about inventory, the model doesn't generate a text response. Instead, it generates a <strong>function call</strong>:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;function_call&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;mcp_inventory_check&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;arguments&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{\&quot;product_list\&quot;: [\&quot;PROD0003\&quot;]}&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>The model has decided that <code>mcp_inventory_check</code> is the right tool and has constructed appropriate arguments based on the user's question.</p>
+<p><strong>Step 3: Your Code Executes the Function</strong></p>
+<p>Your application intercepts the function call, runs the actual code, and captures the result:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="n">mcp_inventory_check</span><span class="p">(</span><span class="n">product_list</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;PROD0003&quot;</span><span class="p">])</span>
+<span class="c1"># Returns: {&quot;ProductName&quot;: &quot;Whispering Blue&quot;, &quot;QuantityInStock&quot;: 487, &quot;Price&quot;: 47.99}</span>
+</code></pre></div>
+
+<p><strong>Step 4: Feed the Result Back</strong></p>
+<p>You send the function result back to the model, which now has real data to reference:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">FunctionCallOutput</span><span class="p">(</span>
+    <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;function_call_output&quot;</span><span class="p">,</span>
+    <span class="n">call_id</span><span class="o">=</span><span class="n">item</span><span class="o">.</span><span class="n">call_id</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;result&quot;</span><span class="p">:</span> <span class="n">result</span><span class="p">})</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Step 5: The Model Generates the Final Response</strong></p>
+<p>With the real data in hand, the model produces a human-friendly answer:</p>
+<blockquote>
+<p>"Great news! Whispering Blue paint is in stock — we have 487 units available at $47.99 each. Would you like me to add it to your cart?"</p>
+</blockquote>
+<h3 id="the-strict-flag">The Strict Flag</h3>
+<p>When you set <code>strict=True</code> on a function definition, the model is guaranteed to produce arguments that conform exactly to your schema. Without strict mode, the model might add extra fields, use the wrong types, or omit required fields. Strict mode eliminates these issues at the cost of slightly longer generation times.</p>
+<h3 id="when-to-use-function-calling">When to Use Function Calling</h3>
+<p>Use function calling when:
+- The agent needs real-time data (inventory, prices, customer data)
+- The agent needs to take actions (generate images, send emails, update databases)
+- The data changes frequently and can't be baked into the prompt</p>
+<p>Don't use function calling when:
+- The information is already in the agent's context (like the cart state in Cart Manager)
+- The task is purely conversational (general chit-chat)
+- Adding a tool call would increase latency without adding value</p>
+<h3 id="in-the-zava-project-the-full-tool-use-loop">In the Zava Project: The Full Tool Use Loop</h3>
+<p>Here's the actual code from <code>src/app/agents/agent_processor.py</code> that implements the tool use loop:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Step 1: Send message to the agent in Foundry</span>
+<span class="n">message</span> <span class="o">=</span> <span class="n">openai_client</span><span class="o">.</span><span class="n">responses</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">conversation</span><span class="o">=</span><span class="n">thread_id</span><span class="p">,</span>
+    <span class="n">extra_body</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;agent&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">agent_id</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;agent_reference&quot;</span><span class="p">}},</span>
+    <span class="nb">input</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+    <span class="n">stream</span><span class="o">=</span><span class="kc">False</span>
+<span class="p">)</span>
+
+<span class="c1"># Step 2: Check if the agent wants to call a function</span>
+<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">output_text</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="n">input_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">message</span><span class="o">.</span><span class="n">output</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;function_call&quot;</span><span class="p">:</span>
+            <span class="c1"># Step 3: Execute the function locally</span>
+            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;mcp_product_recommendations&quot;</span><span class="p">:</span>
+                <span class="n">func_result</span> <span class="o">=</span> <span class="n">mcp_product_recommendations</span><span class="p">(</span><span class="o">**</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">arguments</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;mcp_calculate_discount&quot;</span><span class="p">:</span>
+                <span class="n">func_result</span> <span class="o">=</span> <span class="n">mcp_calculate_discount</span><span class="p">(</span><span class="o">**</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">arguments</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;mcp_inventory_check&quot;</span><span class="p">:</span>
+                <span class="n">func_result</span> <span class="o">=</span> <span class="n">mcp_inventory_check</span><span class="p">(</span><span class="o">**</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">arguments</span><span class="p">))</span>
+
+            <span class="c1"># Step 4: Package the result for the model</span>
+            <span class="n">input_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">FunctionCallOutput</span><span class="p">(</span>
+                <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;function_call_output&quot;</span><span class="p">,</span>
+                <span class="n">call_id</span><span class="o">=</span><span class="n">item</span><span class="o">.</span><span class="n">call_id</span><span class="p">,</span>
+                <span class="n">output</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;result&quot;</span><span class="p">:</span> <span class="n">func_result</span><span class="p">})</span>
+            <span class="p">))</span>
+
+    <span class="c1"># Step 5: Send results back — model generates final text answer</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="n">openai_client</span><span class="o">.</span><span class="n">responses</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="nb">input</span><span class="o">=</span><span class="n">input_list</span><span class="p">,</span>
+        <span class="n">previous_response_id</span><span class="o">=</span><span class="n">message</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+        <span class="n">extra_body</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;agent&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">agent_id</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;agent_reference&quot;</span><span class="p">}},</span>
+    <span class="p">)</span>
+</code></pre></div>
+
+<p>And here's how a function tool is defined with <code>strict=True</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># From agent_processor.py — create_function_tool_for_agent()</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">azure.ai.projects.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">FunctionTool</span>
+
+<span class="n">define_mcp_product_recommendations</span> <span class="o">=</span> <span class="n">FunctionTool</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;mcp_product_recommendations&quot;</span><span class="p">,</span>
+    <span class="n">parameters</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;properties&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;question&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Natural language user query describing what products they&#39;re looking for&quot;</span>
+            <span class="p">}</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;required&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;question&quot;</span><span class="p">],</span>
+        <span class="s2">&quot;additionalProperties&quot;</span><span class="p">:</span> <span class="kc">False</span>
+    <span class="p">},</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Search for product recommendations based on user query.&quot;</span><span class="p">,</span>
+    <span class="n">strict</span><span class="o">=</span><span class="kc">True</span>  <span class="c1"># Guarantees the model&#39;s arguments match this schema exactly</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<hr />
+<h2 id="chapter-4-structured-outputs-guaranteeing-response-formats">Chapter 4: Structured Outputs — Guaranteeing Response Formats</h2>
+<h3 id="the-reliability-problem">The Reliability Problem</h3>
+<p>Consider this scenario: your Handoff Service needs to parse the agent's response to determine which agent to route to. If the agent returns:</p>
+<div class="codehilite"><pre><span></span><code>&quot;Based on the user&#39;s message about adding items to their cart, I believe this should be routed to the cart_manager domain with high confidence.&quot;
+</code></pre></div>
+
+<p>...your code would need complex parsing logic to extract "cart_manager" from that sentence. And what if the model phrases it differently next time? Or wraps it in markdown? Or adds extra fields?</p>
+<h3 id="how-structured-outputs-work">How Structured Outputs Work</h3>
+<p>Structured outputs use a technique called <strong>constrained decoding</strong>. At each step of text generation, the model is only allowed to produce tokens that would result in valid JSON conforming to your schema. It's not just a prompt instruction ("please return JSON") — it's an algorithmic constraint on the generation process.</p>
+<p>You provide the schema using JSON Schema format (or via Pydantic in Python):</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">IntentClassification</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">domain</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Target domain&quot;</span><span class="p">)</span>
+    <span class="n">is_domain_change</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Whether domain changed&quot;</span><span class="p">)</span>
+    <span class="n">confidence</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">reasoning</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Brief explanation&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>And the model will always return exactly this structure:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;domain&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;cart_manager&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;is_domain_change&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;confidence&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.95</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;reasoning&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;User explicitly asked to add to cart&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="pydantic-and-json-schema">Pydantic and JSON Schema</h3>
+<p><strong>Pydantic</strong> is a Python library for data validation. You define a class with type annotations, and Pydantic ensures that any data you create or parse conforms to those types. In this project, Pydantic serves double duty:</p>
+<ol>
+<li><strong>Schema definition:</strong> <code>IntentClassification.model_json_schema()</code> auto-generates the JSON Schema that Azure AI Foundry uses to constrain the model's output</li>
+<li><strong>Response validation:</strong> When parsing the response, Pydantic ensures the data matches expectations</li>
+</ol>
+<p>The <code>model_config = {"extra": "forbid"}</code> setting rejects any extra fields the model might try to include. Combined with structured outputs, this creates an airtight contract between your code and the model.</p>
+<h3 id="when-to-use-structured-outputs">When to Use Structured Outputs</h3>
+<p>Use structured outputs when:
+- The response must be machine-parseable (routing decisions, API responses)
+- You need guaranteed field presence and types
+- Downstream code depends on a specific format</p>
+<p>Don't use them when:
+- The response is for human consumption (chat answers, explanations)
+- You need flexible, variable-length output (product descriptions)
+- The schema would be overly complex or restrictive</p>
+<p>In this project, the Handoff Service uses structured outputs because routing decisions <em>must</em> be reliable. The other agents don't because their responses include freeform text ("answer" field) that shouldn't be constrained.</p>
+<h3 id="in-the-zava-project-structured-output-for-intent-classification">In the Zava Project: Structured Output for Intent Classification</h3>
+<p><strong>Step 1: Define the schema with Pydantic</strong> (<code>src/services/handoff_service.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">IntentClassification</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;extra&quot;</span><span class="p">:</span> <span class="s2">&quot;forbid&quot;</span><span class="p">,</span> <span class="s2">&quot;additionalProperties&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+
+    <span class="n">domain</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Target domain: cora, interior_designer, inventory_agent, customer_loyalty, or cart_manager&quot;</span>
+    <span class="p">)</span>
+    <span class="n">is_domain_change</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Whether this represents a change from the current domain&quot;</span>
+    <span class="p">)</span>
+    <span class="n">confidence</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">ge</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Confidence score between 0.0 and 1.0&quot;</span>
+    <span class="p">)</span>
+    <span class="n">reasoning</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Brief explanation of the classification decision&quot;</span>
+    <span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Step 2: Deploy the agent with the schema</strong> (<code>src/app/agents/handoffAgent_initializer.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">azure.ai.projects.models</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PromptAgentDefinition</span><span class="p">,</span>
+    <span class="n">PromptAgentDefinitionText</span><span class="p">,</span>
+    <span class="n">ResponseTextFormatConfigurationJsonSchema</span>
+<span class="p">)</span>
+
+<span class="n">agent</span> <span class="o">=</span> <span class="n">project_client</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">create_version</span><span class="p">(</span>
+    <span class="n">agent_name</span><span class="o">=</span><span class="s2">&quot;handoff-service&quot;</span><span class="p">,</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Zava Handoff Service Agent&quot;</span><span class="p">,</span>
+    <span class="n">definition</span><span class="o">=</span><span class="n">PromptAgentDefinition</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;gpt_deployment&quot;</span><span class="p">],</span>
+        <span class="n">text</span><span class="o">=</span><span class="n">PromptAgentDefinitionText</span><span class="p">(</span>
+            <span class="nb">format</span><span class="o">=</span><span class="n">ResponseTextFormatConfigurationJsonSchema</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="s2">&quot;IntentClassification&quot;</span><span class="p">,</span>
+                <span class="n">schema</span><span class="o">=</span><span class="n">IntentClassification</span><span class="o">.</span><span class="n">model_json_schema</span><span class="p">()</span>  <span class="c1"># ← Auto-generates JSON Schema from Pydantic</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
+        <span class="n">instructions</span><span class="o">=</span><span class="n">HANDOFF_AGENT_PROMPT</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Step 3: Parse the guaranteed-valid response</strong> (<code>src/services/handoff_service.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">responses</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">conversation</span><span class="o">=</span><span class="n">conversation</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+    <span class="n">extra_body</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;agent&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;handoff-service&quot;</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;agent_reference&quot;</span><span class="p">}},</span>
+    <span class="nb">input</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># This is ALWAYS valid JSON matching the schema — no try/except needed for parsing</span>
+<span class="n">intent</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">output_text</span><span class="p">)</span>
+<span class="c1"># intent = {&quot;domain&quot;: &quot;cart_manager&quot;, &quot;confidence&quot;: 0.95, &quot;is_domain_change&quot;: true, &quot;reasoning&quot;: &quot;...&quot;}</span>
+</code></pre></div>
+
+<p>Contrast this with the other agents (like Cora), which return freeform text that the application then parses with <code>parse_agent_response()</code> — a more fragile approach that requires error handling.</p>
+<hr />
+<h2 id="chapter-5-multi-agent-systems-orchestration">Chapter 5: Multi-Agent Systems &amp; Orchestration</h2>
+<h3 id="why-multiple-agents">Why Multiple Agents?</h3>
+<p>The simplest AI application has one agent that handles everything. This works for small projects, but breaks down at scale. Here's why:</p>
+<p><strong>Prompt bloat.</strong> A single system prompt that covers shopping, cart management, interior design, inventory checks, customer loyalty, and image generation would be enormous. LLMs perform worse with very long, complex prompts — they lose focus and make more mistakes.</p>
+<p><strong>Tool confusion.</strong> If one agent has access to image generation, product search, discount calculation, AND inventory checking, it might generate an image when you asked for a discount, or check inventory when you asked for a product recommendation. More tools = more room for the wrong choice.</p>
+<p><strong>Maintenance nightmare.</strong> When you need to update the cart management logic, you risk accidentally breaking the interior design behavior if they share the same prompt and tool set.</p>
+<h3 id="the-specialization-principle">The Specialization Principle</h3>
+<p>Multi-agent systems follow the <strong>Single Responsibility Principle</strong> from software engineering: each agent should do one thing well. In the Zava project:</p>
+<table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>Specialty</th>
+<th>Tools</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cora</td>
+<td>General shopping questions</td>
+<td>Product search</td>
+</tr>
+<tr>
+<td>Interior Designer</td>
+<td>Room design and visualization</td>
+<td>Image generation + Product search</td>
+</tr>
+<tr>
+<td>Cart Manager</td>
+<td>Cart operations</td>
+<td>None (context-only)</td>
+</tr>
+<tr>
+<td>Customer Loyalty</td>
+<td>Discount calculation</td>
+<td>Discount calculator</td>
+</tr>
+<tr>
+<td>Inventory Agent</td>
+<td>Stock checking</td>
+<td>Inventory check</td>
+</tr>
+</tbody>
+</table>
+<p>Each agent has a focused prompt, only the tools it needs, and no knowledge of the other agents' existence.</p>
+<h3 id="the-orchestration-problem">The Orchestration Problem</h3>
+<p>If you have five specialists, who decides which one handles each message? This is the <strong>orchestration problem</strong>, and there are three common approaches:</p>
+<h4 id="approach-1-keyword-matching-simple-brittle">Approach 1: Keyword Matching (Simple, Brittle)</h4>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="s2">&quot;cart&quot;</span> <span class="ow">in</span> <span class="n">message</span><span class="p">:</span>
+    <span class="n">route_to</span><span class="p">(</span><span class="s2">&quot;cart_manager&quot;</span><span class="p">)</span>
+<span class="k">elif</span> <span class="s2">&quot;stock&quot;</span> <span class="ow">in</span> <span class="n">message</span> <span class="ow">or</span> <span class="s2">&quot;available&quot;</span> <span class="ow">in</span> <span class="n">message</span><span class="p">:</span>
+    <span class="n">route_to</span><span class="p">(</span><span class="s2">&quot;inventory_agent&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Problem:</strong> "What color options are available for the shopping cart page?" would match both "cart" and "available," and "available" doesn't mean inventory here.</p>
+<h4 id="approach-2-rule-based-classification-better-still-limited">Approach 2: Rule-Based Classification (Better, Still Limited)</h4>
+<p>Regex patterns, priority rules, and decision trees. More robust than keywords, but every new edge case requires a new rule. Doesn't handle ambiguity or novel phrasing.</p>
+<h4 id="approach-3-llm-based-classification-flexible-smart">Approach 3: LLM-Based Classification (Flexible, Smart)</h4>
+<p>Use another LLM to classify the intent. This is what the Zava project does — the Handoff Service agent reads the user's message and outputs a structured classification with domain, confidence, and reasoning.</p>
+<p><strong>Advantages:</strong>
+- Handles novel phrasing ("I'd like to see how this would look on my wall" → interior_designer)
+- Provides confidence scores for uncertain cases
+- Can reason about context ("we were discussing paint colors, and the user says 'add it'" → cart_manager, not cora)</p>
+<p><strong>Tradeoff:</strong> Every message requires an extra LLM call for classification, adding latency and cost. The project mitigates this with <strong>lazy classification</strong> — the first message always goes to Cora without classification.</p>
+<h3 id="session-aware-routing">Session-Aware Routing</h3>
+<p>The Handoff Service doesn't just classify individual messages — it considers the session context. If you're currently in a conversation with the Interior Designer about paint colors and you say "how much is that?", the service knows you're still in the interior design domain, not asking a general shopping question.</p>
+<p>This is implemented by tracking the current domain per session:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># If we&#39;re in &quot;interior_designer&quot; and user says &quot;how much?&quot;,</span>
+<span class="c1"># the classifier sees: &quot;Current domain: interior_designer&quot;</span>
+<span class="c1"># and can decide to stay in the same domain.</span>
+</code></pre></div>
+
+<h3 id="in-the-zava-project-the-five-specialist-agents">In the Zava Project: The Five Specialist Agents</h3>
+<p>Each agent is created by a separate initializer script. Here's a side-by-side showing how tools are assigned per agent type:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># From src/app/agents/agent_processor.py — create_function_tool_for_agent()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_function_tool_for_agent</span><span class="p">(</span><span class="n">agent_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]:</span>
+    <span class="c1"># ... tool definitions ...</span>
+
+    <span class="k">if</span> <span class="n">agent_type</span> <span class="o">==</span> <span class="s2">&quot;interior_designer&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">define_mcp_create_image</span><span class="p">,</span> <span class="n">define_mcp_product_recommendations</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="n">agent_type</span> <span class="o">==</span> <span class="s2">&quot;customer_loyalty&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">define_mcp_calculate_discount</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="n">agent_type</span> <span class="o">==</span> <span class="s2">&quot;inventory_agent&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">define_mcp_inventory_check</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="n">agent_type</span> <span class="o">==</span> <span class="s2">&quot;cart_manager&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[]</span>   <span class="c1"># ← No tools! Pure LLM reasoning from context</span>
+    <span class="k">elif</span> <span class="n">agent_type</span> <span class="o">==</span> <span class="s2">&quot;cora&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">define_mcp_product_recommendations</span><span class="p">]</span>
+</code></pre></div>
+
+<p>And here's the orchestrator routing in <code>src/chat_app.py</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Handoff Service classifies intent → picks the right agent</span>
+<span class="n">intent_result</span> <span class="o">=</span> <span class="n">handoff_service</span><span class="o">.</span><span class="n">classify_intent</span><span class="p">(</span>
+    <span class="n">user_message</span><span class="o">=</span><span class="n">user_message</span><span class="p">,</span>
+    <span class="n">session_id</span><span class="o">=</span><span class="n">session_id</span><span class="p">,</span>
+    <span class="n">chat_history</span><span class="o">=</span><span class="n">formatted_history</span>
+<span class="p">)</span>
+<span class="n">agent_name</span> <span class="o">=</span> <span class="n">intent_result</span><span class="p">[</span><span class="s2">&quot;agent_id&quot;</span><span class="p">]</span>       <span class="c1"># e.g., &quot;cora&quot;, &quot;cart_manager&quot;</span>
+<span class="n">agent_selected</span> <span class="o">=</span> <span class="n">validated_env_vars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">agent_name</span><span class="p">)</span>  <span class="c1"># Get agent ID from environment</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Intent classification: domain=</span><span class="si">{</span><span class="n">intent_result</span><span class="p">[</span><span class="s1">&#39;domain&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">, &quot;</span>
+      <span class="sa">f</span><span class="s2">&quot;confidence=</span><span class="si">{</span><span class="n">intent_result</span><span class="p">[</span><span class="s1">&#39;confidence&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">, &quot;</span>
+      <span class="sa">f</span><span class="s2">&quot;reasoning=</span><span class="si">{</span><span class="n">intent_result</span><span class="p">[</span><span class="s1">&#39;reasoning&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>The Handoff Service's lazy classification skips the LLM call on the first message:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># From src/services/handoff_service.py</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">classify_intent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">,</span> <span class="n">session_id</span><span class="p">,</span> <span class="n">chat_history</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">current_domain</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_session_domains</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">session_id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="c1"># First message → skip classification, go straight to default agent</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">current_domain</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_session_domains</span><span class="p">[</span><span class="n">session_id</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_domain</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;domain&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_domain</span><span class="p">,</span>    <span class="c1"># &quot;cora&quot;</span>
+            <span class="s2">&quot;confidence&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>
+            <span class="s2">&quot;reasoning&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;First message, routing to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">default_domain</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="o">...</span>
+        <span class="p">}</span>
+</code></pre></div>
+
+<hr />
+<h2 id="chapter-6-the-model-context-protocol-mcp">Chapter 6: The Model Context Protocol (MCP)</h2>
+<h3 id="what-is-mcp">What Is MCP?</h3>
+<p><strong>MCP (Model Context Protocol)</strong> is an open standard that defines how AI applications communicate with external tools and data sources. It was created by Anthropic and has been adopted broadly across the AI industry.</p>
+<p>Think of MCP as <strong>USB for AI tools</strong>. Before USB, every device needed its own special connector. USB standardized the interface so any device works with any computer. Similarly, MCP standardizes the interface so any AI application can use any MCP-compatible tool.</p>
+<h3 id="the-architecture-server-and-client">The Architecture: Server and Client</h3>
+<p>MCP uses a <strong>client-server architecture</strong>:</p>
+<div class="codehilite"><pre><span></span><code>┌──────────────┐    SSE/stdio    ┌──────────────┐
+│  MCP Client  │ ◄────────────► │  MCP Server   │
+│ (Your App)   │                 │ (Tool Host)   │
+└──────────────┘                 └──────────────┘
+                                       │
+                                       ▼
+                                 ┌───────────┐
+                                 │ Business   │
+                                 │ Logic      │
+                                 │ (DB, API,  │
+                                 │  etc.)     │
+                                 └───────────┘
+</code></pre></div>
+
+<p><strong>MCP Server:</strong> Exposes tools with standardized interfaces. In this project, the server offers:
+- <code>get_product_recommendations</code> — searches Cosmos DB
+- <code>check_product_inventory</code> — looks up stock levels
+- <code>get_customer_discount</code> — calculates loyalty discounts
+- <code>generate_product_image</code> — creates images via DALL-E</p>
+<p><strong>MCP Client:</strong> Discovers and calls tools on the server. The client doesn't need to know implementation details — it just knows the tool's name and parameters.</p>
+<h3 id="transport-layers">Transport Layers</h3>
+<p>MCP supports multiple transport mechanisms:
+- <strong>stdio:</strong> Communication via standard input/output (for local processes)
+- <strong>SSE (Server-Sent Events):</strong> Communication over HTTP (for networked services)</p>
+<p>The Zava project uses <strong>SSE</strong> because the MCP server runs as a sub-application inside the FastAPI web server, accessible at <code>/mcp-inventory/sse</code>.</p>
+<h3 id="why-use-mcp-instead-of-direct-function-calls">Why Use MCP Instead of Direct Function Calls?</h3>
+<p>You could skip MCP entirely and call your tools directly:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Direct call (no MCP)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">product_recommendations</span><span class="p">(</span><span class="s2">&quot;blue paint&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>So why add the MCP layer? Several reasons:</p>
+<ol>
+<li>
+<p><strong>Discoverability.</strong> MCP clients can query the server to list all available tools at runtime. Useful for debugging and dynamic tool selection.</p>
+</li>
+<li>
+<p><strong>Separation of concerns.</strong> The tool implementation lives in the MCP server. The agent code only knows about the tool's interface. You can change the database behind <code>get_product_recommendations</code> without touching agent code.</p>
+</li>
+<li>
+<p><strong>Reusability.</strong> Multiple agents (and even external applications) can use the same MCP server. One tool implementation serves all consumers.</p>
+</li>
+<li>
+<p><strong>Ecosystem compatibility.</strong> MCP is an open standard. Third-party tools, IDEs, and AI platforms can interact with your MCP server without custom integration.</p>
+</li>
+<li>
+<p><strong>Prompts as a Service.</strong> MCP servers can also expose <strong>prompts</strong> — reusable prompt templates that clients can retrieve. The Zava MCP server exposes agent prompts via <code>@mcp.prompt()</code>, allowing tools to serve both implementations and instructions.</p>
+</li>
+</ol>
+<h3 id="mcp-in-the-zava-project">MCP in the Zava Project</h3>
+<p>The MCP server is mounted directly inside the FastAPI application:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">app</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="s2">&quot;/mcp-inventory/&quot;</span><span class="p">,</span> <span class="n">inventory_mcp</span><span class="o">.</span><span class="n">sse_app</span><span class="p">())</span>
+</code></pre></div>
+
+<p>This means the MCP tools are co-located with the chat application — no separate deployment needed. The MCP client connects to this internal endpoint to execute tools during agent processing.</p>
+<h3 id="in-the-zava-project-server-client-tool-implementation">In the Zava Project: Server, Client &amp; Tool Implementation</h3>
+<p><strong>The MCP Server</strong> (<code>src/app/servers/mcp_inventory_server.py</code>) — exposes tools via the <code>@mcp.tool()</code> decorator:</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">mcp.server.fastmcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastMCP</span>
+
+<span class="n">mcp</span> <span class="o">=</span> <span class="n">FastMCP</span><span class="p">(</span><span class="s2">&quot;MCP Shop Inventory Server&quot;</span><span class="p">)</span>
+
+<span class="nd">@mcp</span><span class="o">.</span><span class="n">tool</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_product_recommendations</span><span class="p">(</span><span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Search for product recommendations based on user query.&quot;&quot;&quot;</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">product_recommendations</span><span class="p">(</span><span class="n">question</span><span class="p">)</span>   <span class="c1"># Calls Cosmos DB vector search</span>
+    <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+
+<span class="nd">@mcp</span><span class="o">.</span><span class="n">tool</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_product_inventory</span><span class="p">(</span><span class="n">product_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check inventory availability for a specific product.&quot;&quot;&quot;</span>
+    <span class="n">product_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">product_id</span><span class="p">}</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">inventory_check</span><span class="p">(</span><span class="n">product_dict</span><span class="p">)</span>         <span class="c1"># Checks simulated inventory data</span>
+    <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+<span class="nd">@mcp</span><span class="o">.</span><span class="n">tool</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_customer_discount</span><span class="p">(</span><span class="n">customer_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Calculate available discounts for a customer.&quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">calculate_discount</span><span class="p">(</span><span class="n">customer_id</span><span class="p">)</span>       <span class="c1"># Simulates Fabric + OpenAI discount logic</span>
+    <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+<span class="nd">@mcp</span><span class="o">.</span><span class="n">tool</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_product_image</span><span class="p">(</span><span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;1024x1024&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate an AI image based on a text description using DALL-E.&quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">create_image</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span>            <span class="c1"># Calls gpt-image-1 + uploads to Blob</span>
+    <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</code></pre></div>
+
+<p>The server also exposes <strong>prompts</strong> as reusable templates:</p>
+<div class="codehilite"><pre><span></span><code><span class="nd">@mcp</span><span class="o">.</span><span class="n">prompt</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">&quot;Agent Prompt&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">agentPrompt</span><span class="p">(</span><span class="n">agent_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Returns the appropriate agent prompt based on the agent name.&quot;&quot;&quot;</span>
+    <span class="n">prompt_files</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;cora&quot;</span><span class="p">:</span> <span class="s2">&quot;ShopperAgentPrompt.txt&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;customer_loyalty&quot;</span><span class="p">:</span> <span class="s2">&quot;CustomerLoyaltyAgentPrompt.txt&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;interior_designer&quot;</span><span class="p">:</span> <span class="s2">&quot;InteriorDesignAgentPrompt.txt&quot;</span><span class="p">,</span>
+        <span class="o">...</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">read_prompt_file</span><span class="p">(</span><span class="n">prompt_files</span><span class="p">[</span><span class="n">agent_name</span><span class="o">.</span><span class="n">lower</span><span class="p">()])</span>
+</code></pre></div>
+
+<p><strong>The MCP Client</strong> (<code>src/app/servers/mcp_inventory_client.py</code>) — connects to the server and calls tools:</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClientSession</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mcp.client.sse</span><span class="w"> </span><span class="kn">import</span> <span class="n">sse_client</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MCPShopperToolsClient</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">server_url</span><span class="o">=</span><span class="s2">&quot;http://localhost:8000/sse&quot;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">server_url</span> <span class="o">=</span> <span class="n">server_url</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">call_tool</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tool_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">arguments</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">sse_client</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">server_url</span><span class="p">)</span> <span class="k">as</span> <span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">write</span><span class="p">):</span>
+            <span class="k">async</span> <span class="k">with</span> <span class="n">ClientSession</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">write</span><span class="p">)</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+                <span class="n">result_data</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">call_tool</span><span class="p">(</span><span class="n">tool_name</span><span class="p">,</span> <span class="n">arguments</span><span class="o">=</span><span class="n">arguments</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">result_data</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_tools</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Discover all tools available on the server.&quot;&quot;&quot;</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">sse_client</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">server_url</span><span class="p">)</span> <span class="k">as</span> <span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">write</span><span class="p">):</span>
+            <span class="k">async</span> <span class="k">with</span> <span class="n">ClientSession</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">write</span><span class="p">)</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+                <span class="k">return</span> <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">list_tools</span><span class="p">()</span>
+</code></pre></div>
+
+<p><strong>Mounting the server inside FastAPI</strong> (<code>src/chat_app.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">app.servers.mcp_inventory_server</span><span class="w"> </span><span class="kn">import</span> <span class="n">mcp</span> <span class="k">as</span> <span class="n">inventory_mcp</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+<span class="n">inventory_mcp_app</span> <span class="o">=</span> <span class="n">inventory_mcp</span><span class="o">.</span><span class="n">sse_app</span><span class="p">()</span>
+<span class="n">app</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="s2">&quot;/mcp-inventory/&quot;</span><span class="p">,</span> <span class="n">inventory_mcp_app</span><span class="p">)</span>    <span class="c1"># Tools at /mcp-inventory/sse</span>
+</code></pre></div>
+
+<hr />
+<h2 id="chapter-7-azure-ai-foundry-deploying-agents-to-the-cloud">Chapter 7: Azure AI Foundry — Deploying Agents to the Cloud</h2>
+<h3 id="what-is-azure-ai-foundry">What Is Azure AI Foundry?</h3>
+<p><strong>Azure AI Foundry</strong> (formerly Azure AI Studio) is Microsoft's platform for building and deploying AI applications. For this project, Foundry serves as the <strong>agent hosting and execution platform</strong>. You define agents (with models, prompts, and tools) and deploy them to Foundry. Your application then calls these agents by name to process messages.</p>
+<h3 id="why-deploy-agents-to-foundry">Why Deploy Agents to Foundry?</h3>
+<p>You could run agents entirely in your own code — just call the OpenAI API directly with a system prompt and tools. So why use Foundry?</p>
+<ol>
+<li><strong>Centralized management.</strong> All agents are defined in one place. You can update an agent's prompt or tools without redeploying your application.</li>
+<li><strong>Versioning.</strong> <code>create_version()</code> creates a new version of an agent. You can roll back to previous versions if something goes wrong.</li>
+<li><strong>Conversation management.</strong> Foundry manages conversation threads, so your application doesn't need to store and send full conversation histories.</li>
+<li><strong>Monitoring.</strong> Foundry provides built-in telemetry, logging, and performance monitoring for agent invocations.</li>
+<li><strong>Access control.</strong> Foundry integrates with Azure's identity and access management for security.</li>
+</ol>
+<h3 id="the-agent-lifecycle">The Agent Lifecycle</h3>
+<div class="codehilite"><pre><span></span><code><span class="mf">1.</span><span class="w"> </span><span class="kd">DEF</span><span class="n">INE</span><span class="w">    </span><span class="err">→</span><span class="w"> </span><span class="n">Write</span><span class="w"> </span><span class="kr">sys</span><span class="n">tem</span><span class="w"> </span><span class="n">prompt</span><span class="w"> </span><span class="p">(</span><span class="mf">.</span><span class="n">txt</span><span class="w"> </span><span class="n">file</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">choose</span><span class="w"> </span><span class="kr">to</span><span class="n">ols</span>
+<span class="mf">2.</span><span class="w"> </span><span class="n">DEPLOY</span><span class="w">    </span><span class="err">→</span><span class="w"> </span><span class="kr">Run</span><span class="w"> </span><span class="n">initializer</span><span class="w"> </span><span class="n">script</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">Agent</span><span class="w"> </span><span class="n">registered</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="n">Foundry</span>
+<span class="mf">3.</span><span class="w"> </span><span class="n">INVOKE</span><span class="w">    </span><span class="err">→</span><span class="w"> </span><span class="n">Application</span><span class="w"> </span><span class="n">calls</span><span class="w"> </span><span class="n">agent</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="n">via</span><span class="w"> </span><span class="n">conversations</span><span class="w"> </span><span class="n">API</span>
+<span class="mf">4.</span><span class="w"> </span><span class="n">ITERATE</span><span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">Update</span><span class="w"> </span><span class="n">prompt</span><span class="o">/</span><span class="kr">to</span><span class="n">ols</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">Re</span><span class="o">-</span><span class="kr">run</span><span class="w"> </span><span class="n">initializer</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="kr">New</span><span class="w"> </span><span class="n">version</span><span class="w"> </span><span class="n">deployed</span>
+</code></pre></div>
+
+<h3 id="authentication-defaultazurecredential">Authentication: DefaultAzureCredential</h3>
+<p>All communication with Foundry uses <strong>DefaultAzureCredential</strong>, which automatically tries multiple authentication methods in order:</p>
+<ol>
+<li>Environment variables (for CI/CD pipelines)</li>
+<li>Managed Identity (for Azure-hosted applications like App Service)</li>
+<li>Azure CLI (<code>az login</code> — for local development)</li>
+<li>Visual Studio / VS Code credentials</li>
+</ol>
+<p>This means the same code works in development (using your CLI login) and production (using the App Service's managed identity) without any changes.</p>
+<h3 id="in-the-zava-project-creating-and-invoking-agents">In the Zava Project: Creating and Invoking Agents</h3>
+<p><strong>The universal agent factory</strong> (<code>src/app/agents/agent_initializer.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">azure.ai.projects</span><span class="w"> </span><span class="kn">import</span> <span class="n">AIProjectClient</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">azure.ai.projects.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">PromptAgentDefinition</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">initialize_agent</span><span class="p">(</span><span class="n">project_client</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">description</span><span class="p">,</span> <span class="n">instructions</span><span class="p">,</span> <span class="n">tools</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">project_client</span><span class="p">:</span>
+        <span class="n">agent</span> <span class="o">=</span> <span class="n">project_client</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">create_version</span><span class="p">(</span>
+            <span class="n">agent_name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>              <span class="c1"># Name used to reference at runtime</span>
+            <span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">,</span>
+            <span class="n">definition</span><span class="o">=</span><span class="n">PromptAgentDefinition</span><span class="p">(</span>
+                <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>              <span class="c1"># GPT deployment name</span>
+                <span class="n">instructions</span><span class="o">=</span><span class="n">instructions</span><span class="p">,</span> <span class="c1"># System prompt from .txt file</span>
+                <span class="n">tools</span><span class="o">=</span><span class="n">tools</span>               <span class="c1"># List of FunctionTool objects</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Created </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> agent, ID: </span><span class="si">{</span><span class="n">agent</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Invoking an agent at runtime</strong> (<code>src/app/agents/agent_processor.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 1. Get an OpenAI client from the project client</span>
+<span class="n">openai_client</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">project_client</span><span class="o">.</span><span class="n">get_openai_client</span><span class="p">()</span>
+
+<span class="c1"># 2. Create a conversation thread</span>
+<span class="n">conversation</span> <span class="o">=</span> <span class="n">openai_client</span><span class="o">.</span><span class="n">conversations</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">items</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">input_message</span><span class="p">}]</span>
+<span class="p">)</span>
+<span class="n">thread_id</span> <span class="o">=</span> <span class="n">conversation</span><span class="o">.</span><span class="n">id</span>
+
+<span class="c1"># 3. Send to the Foundry agent by name</span>
+<span class="n">message</span> <span class="o">=</span> <span class="n">openai_client</span><span class="o">.</span><span class="n">responses</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">conversation</span><span class="o">=</span><span class="n">thread_id</span><span class="p">,</span>
+    <span class="n">extra_body</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;agent&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">agent_id</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;agent_reference&quot;</span><span class="p">}},</span>
+    <span class="nb">input</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+    <span class="n">stream</span><span class="o">=</span><span class="kc">False</span>
+<span class="p">)</span>
+
+<span class="c1"># 4. Read the response</span>
+<span class="n">content</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">output_text</span>
+</code></pre></div>
+
+<p>The key detail is <code>extra_body={"agent": {"name": self.agent_id, "type": "agent_reference"}}</code> — this tells the API "use the agent named X that's registered in Foundry" rather than sending a raw system prompt.</p>
+<p><strong>Caching processors for performance</strong> (<code>src/services/agent_service.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="n">_agent_processor_cache</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AgentProcessor</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_or_create_agent_processor</span><span class="p">(</span><span class="n">agent_id</span><span class="p">,</span> <span class="n">agent_type</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">,</span> <span class="n">project_client</span><span class="p">):</span>
+    <span class="n">cache_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agent_type</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">agent_id</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">if</span> <span class="n">cache_key</span> <span class="ow">in</span> <span class="n">_agent_processor_cache</span><span class="p">:</span>
+        <span class="n">processor</span> <span class="o">=</span> <span class="n">_agent_processor_cache</span><span class="p">[</span><span class="n">cache_key</span><span class="p">]</span>
+        <span class="n">processor</span><span class="o">.</span><span class="n">thread_id</span> <span class="o">=</span> <span class="n">thread_id</span>   <span class="c1"># Update thread for new conversation</span>
+        <span class="k">return</span> <span class="n">processor</span>
+    <span class="n">processor</span> <span class="o">=</span> <span class="n">AgentProcessor</span><span class="p">(</span>
+        <span class="n">project_client</span><span class="o">=</span><span class="n">project_client</span><span class="p">,</span>
+        <span class="n">assistant_id</span><span class="o">=</span><span class="n">agent_id</span><span class="p">,</span>
+        <span class="n">agent_type</span><span class="o">=</span><span class="n">agent_type</span><span class="p">,</span>
+        <span class="n">thread_id</span><span class="o">=</span><span class="n">thread_id</span>
+    <span class="p">)</span>
+    <span class="n">_agent_processor_cache</span><span class="p">[</span><span class="n">cache_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">processor</span>
+    <span class="k">return</span> <span class="n">processor</span>
+</code></pre></div>
+
+<hr />
+<h2 id="chapter-8-prompt-engineering-the-art-of-agent-instructions">Chapter 8: Prompt Engineering — The Art of Agent Instructions</h2>
+<h3 id="what-is-prompt-engineering">What Is Prompt Engineering?</h3>
+<p><strong>Prompt engineering</strong> is the practice of designing and refining the text instructions given to an LLM to elicit the desired behavior. It's part art, part science. A well-crafted prompt can be the difference between a helpful agent and a frustrating one.</p>
+<h3 id="anatomy-of-a-good-system-prompt">Anatomy of a Good System Prompt</h3>
+<p>The prompts in the <code>prompts/</code> directory follow a consistent structure:</p>
+<h4 id="1-role-definition">1. Role Definition</h4>
+<div class="codehilite"><pre><span></span><code><span class="nv">You</span><span class="w"> </span><span class="nv">are</span><span class="w"> </span><span class="nv">a</span><span class="w"> </span><span class="nv">Cart</span><span class="w"> </span><span class="nv">Manager</span><span class="w"> </span><span class="nv">Assistant</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="nv">Zava</span>,<span class="w"> </span><span class="nv">a</span><span class="w"> </span><span class="nv">home</span><span class="w"> </span><span class="nv">improvement</span><span class="w"> </span><span class="nv">and</span><span class="w"> </span><span class="nv">furniture</span><span class="w"> </span><span class="nv">retailer</span>.
+</code></pre></div>
+
+<p>Tells the model who it is and what domain it operates in.</p>
+<h4 id="2-responsibility-list">2. Responsibility List</h4>
+<div class="codehilite"><pre><span></span><code><span class="mf">1.</span><span class="w"> </span><span class="n">CART</span><span class="w"> </span><span class="n">MANAGEMENT</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">Add</span><span class="w"> </span><span class="n">products</span><span class="p">,</span><span class="w"> </span><span class="c1">remove products, update quantities</span>
+<span class="mf">2.</span><span class="w"> </span><span class="n">CART</span><span class="w"> </span><span class="n">OPERATIONS</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">Parse</span><span class="w"> </span><span class="n">requests</span><span class="p">,</span><span class="w"> </span><span class="n">update</span><span class="w"> </span><span class="n">state</span><span class="p">,</span><span class="w"> </span><span class="n">confirm</span><span class="w"> </span><span class="n">actions</span>
+<span class="mf">3.</span><span class="w"> </span><span class="n">RESPONSE</span><span class="w"> </span><span class="kr">FOR</span><span class="n">MAT</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">Always</span><span class="w"> </span><span class="n">respond</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="nb">val</span><span class="n">id</span><span class="w"> </span><span class="n">JSON</span><span class="w"> </span><span class="kr">for</span><span class="n">mat</span>
+</code></pre></div>
+
+<p>A numbered list of specific duties helps the model understand its scope.</p>
+<h4 id="3-output-format-specification">3. Output Format Specification</h4>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;answer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Friendly confirmation message&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;cart&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">&quot;product_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;quantity&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">29.99</span><span class="p">}],</span>
+<span class="w">    </span><span class="nt">&quot;products&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional related product suggestions&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;discount_percentage&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Showing the exact expected JSON structure is far more effective than describing it in prose.</p>
+<h4 id="4-behavioral-guidelines">4. Behavioral Guidelines</h4>
+<div class="codehilite"><pre><span></span><code><span class="o">-</span><span class="w"> </span><span class="nv">Be</span><span class="w"> </span><span class="nv">friendly</span><span class="w"> </span><span class="nv">and</span><span class="w"> </span><span class="nv">helpful</span>
+<span class="o">-</span><span class="w"> </span><span class="nv">Confirm</span><span class="w"> </span><span class="nv">actions</span><span class="w"> </span><span class="nv">clearly</span>
+<span class="o">-</span><span class="w"> </span><span class="k">If</span><span class="w"> </span><span class="nv">unclear</span>,<span class="w"> </span><span class="nv">ask</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="nv">clarification</span>
+<span class="o">-</span><span class="w"> </span><span class="nv">Never</span><span class="w"> </span><span class="nv">generate</span><span class="w"> </span><span class="nv">content</span><span class="w"> </span><span class="nv">outside</span><span class="w"> </span><span class="nv">your</span><span class="w"> </span><span class="nv">domain</span>
+</code></pre></div>
+
+<h4 id="5-guardrails">5. Guardrails</h4>
+<div class="codehilite"><pre><span></span><code><span class="o">-</span><span class="w"> </span><span class="k">If</span><span class="w"> </span><span class="nv">asked</span><span class="w"> </span><span class="nv">about</span><span class="w"> </span><span class="nv">something</span><span class="w"> </span><span class="nv">not</span><span class="w"> </span><span class="nv">related</span><span class="w"> </span><span class="nv">to</span><span class="w"> </span><span class="nv">DIY</span>,<span class="w"> </span><span class="nv">politely</span><span class="w"> </span><span class="nv">decline</span>
+<span class="o">-</span><span class="w"> </span><span class="k">Do</span><span class="w"> </span><span class="nv">not</span><span class="w"> </span><span class="nv">generate</span><span class="w"> </span><span class="nv">content</span><span class="w"> </span><span class="nv">summaries</span><span class="w"> </span><span class="nv">or</span><span class="w"> </span><span class="nv">remove</span><span class="w"> </span><span class="nv">any</span><span class="w"> </span><span class="nv">data</span>
+</code></pre></div>
+
+<h3 id="prompt-storage-strategy">Prompt Storage Strategy</h3>
+<p>This project stores prompts as <strong>external <code>.txt</code> files</strong> rather than embedding them in Python code. This is a deliberate design choice:</p>
+<ul>
+<li><strong>Non-developers can edit prompts.</strong> A product manager can tweak agent behavior without touching code.</li>
+<li><strong>Version control is cleaner.</strong> Prompt changes show up as text diffs, easy to review.</li>
+<li><strong>No recompilation needed.</strong> In some deployment models, you can update prompts without rebuilding the Docker image.</li>
+<li><strong>Separation of concerns.</strong> Python files contain logic; prompt files contain behavior.</li>
+</ul>
+<h3 id="the-handoff-prompt-a-special-case">The Handoff Prompt: A Special Case</h3>
+<p>The Handoff Service prompt is different from other agents' prompts. It's an <strong>intent classification prompt</strong> that tells the model:
+- The available domains (with descriptions)
+- How to analyze a message
+- Rules for routing (e.g., "if user mentions cart → cart_manager")
+- The current domain context</p>
+<p>This prompt is designed for <strong>precision over personality</strong> — the model should classify accurately, not engagingly.</p>
+<h3 id="in-the-zava-project-all-system-prompts">In the Zava Project: All System Prompts</h3>
+<p><strong>Cora (Shopper Agent)</strong> — <code>src/prompts/ShopperAgentPrompt.txt</code>:</p>
+<div class="codehilite"><pre><span></span><code>Shopper Agent Guidelines
+========================================
+<span class="k">-</span> You are the public facing assistant of Zava
+<span class="k">-</span> Greet people and help them as needed
+<span class="k">-</span> Return response in following json format (image_output and products empty)
+
+answer: your answer,
+image_output: []
+products: []
+</code></pre></div>
+
+<p>Short, focused. Defines role, output format, and nothing else.</p>
+<p><strong>Cart Manager</strong> — <code>src/prompts/CartManagerPrompt.txt</code> (excerpt):</p>
+<div class="codehilite"><pre><span></span><code>You are a Cart Manager Assistant for Zava, a home improvement and furniture retailer.
+
+1. CART MANAGEMENT — Add/remove/update products
+2. CART OPERATIONS — Parse requests, update state, confirm actions
+3. RESPONSE FORMAT — Always respond in valid JSON:
+   {
+       &quot;answer&quot;: &quot;Friendly confirmation message&quot;,
+       &quot;cart&quot;: [{&quot;product_id&quot;: &quot;PROD-123&quot;, &quot;name&quot;: &quot;Product Name&quot;, &quot;quantity&quot;: 2, &quot;price&quot;: 29.99}],
+       &quot;products&quot;: &quot;Optional related product suggestions&quot;,
+       &quot;discount_percentage&quot;: &quot;&quot;
+   }
+</code></pre></div>
+
+<p>Long and detailed — because the Cart Manager has no tools and must figure out everything from context.</p>
+<p><strong>Handoff Agent</strong> — <code>src/prompts/HandoffAgentPrompt.txt</code> (excerpt):</p>
+<div class="codehilite"><pre><span></span><code>You are an intent classifier for Zava shopping assistant.
+
+Available domains:
+1. cora: General shopping, product browsing
+2. interior_designer: Room design, decorating, image creation
+3. inventory_agent: Product availability, stock checks
+4. customer_loyalty: Discounts, promotions, loyalty programs
+5. cart_manager: Shopping cart operations
+
+Rules:
+<span class="k">-</span> If user mentions &quot;cart&quot;, &quot;add to cart&quot;, &quot;checkout&quot; → cart_manager
+<span class="k">-</span> If uncertain, default to current domain with low confidence
+<span class="k">-</span> Default to &#39;cora&#39; for general/ambiguous queries
+</code></pre></div>
+
+<p>Pure classification — no personality, just rules and domains.</p>
+<p><strong>Loading prompts from files</strong> (every initializer follows this pattern):</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># From src/app/agents/cartManagerAgent_initializer.py</span>
+<span class="n">CART_PROMPT_PATH</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="s1">&#39;prompts&#39;</span><span class="p">,</span> <span class="s1">&#39;CartManagerPrompt.txt&#39;</span><span class="p">)</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">CART_PROMPT_PATH</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+    <span class="n">CART_MANAGER_PROMPT</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+<span class="n">initialize_agent</span><span class="p">(</span>
+    <span class="o">...</span>
+    <span class="n">instructions</span><span class="o">=</span><span class="n">CART_MANAGER_PROMPT</span><span class="p">,</span>  <span class="c1"># Loaded from file, not hardcoded</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<hr />
+<h2 id="chapter-9-docker-containerization">Chapter 9: Docker &amp; Containerization</h2>
+<h3 id="what-is-docker">What Is Docker?</h3>
+<p><strong>Docker</strong> is a platform for building, shipping, and running applications in isolated environments called <strong>containers</strong>. A container packages your application with everything it needs — OS libraries, runtime, dependencies, and code — into a single portable unit.</p>
+<h3 id="the-problem-docker-solves">The Problem Docker Solves</h3>
+<p>Without Docker, deploying an application involves:
+1. Setting up a server with the right OS version
+2. Installing the correct Python version
+3. Installing system libraries (gcc, libgl1, etc.)
+4. Installing Python packages (with the exact right versions)
+5. Copying your code
+6. Configuring environment variables
+7. Hoping nothing conflicts with other software on the server</p>
+<p>Each step can fail, and each failure is unique to the server's state. <strong>"It works on my machine"</strong> is the rallying cry of developers who haven't containerized.</p>
+<p>Docker eliminates this by encoding all setup steps into a <strong>Dockerfile</strong> — a reproducible recipe that produces identical results everywhere.</p>
+<h3 id="key-concepts">Key Concepts</h3>
+<h4 id="images-and-containers">Images and Containers</h4>
+<p>An <strong>image</strong> is a read-only template. A <strong>container</strong> is a running instance of an image.</p>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>OOP Analogy</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Image</td>
+<td>Class</td>
+<td><code>docker build</code> creates it</td>
+</tr>
+<tr>
+<td>Container</td>
+<td>Object instance</td>
+<td><code>docker run</code> creates it from an image</td>
+</tr>
+</tbody>
+</table>
+<p>You can run multiple containers from the same image, each with its own state.</p>
+<h4 id="layers-and-caching">Layers and Caching</h4>
+<p>Each instruction in a Dockerfile creates a <strong>layer</strong>. Docker caches layers and reuses them when nothing has changed. This is why the order of instructions matters:</p>
+<div class="codehilite"><pre><span></span><code><span class="c"># Good: Dependencies first (rarely change), code last (changes often)</span>
+<span class="k">COPY</span><span class="w"> </span>requirements.txt<span class="w"> </span>./<span class="w">          </span>#<span class="w"> </span>←<span class="w"> </span>Layer<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>cached<span class="w"> </span>unless<span class="w"> </span>requirements<span class="w"> </span>change
+<span class="k">RUN</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt<span class="w">  </span>#<span class="w"> </span>←<span class="w"> </span>Layer<span class="w"> </span><span class="m">2</span>:<span class="w"> </span>cached<span class="w"> </span>unless<span class="w"> </span>Layer<span class="w"> </span><span class="m">1</span><span class="w"> </span>changed
+<span class="k">COPY</span><span class="w"> </span>.<span class="w"> </span>.<span class="w">                          </span>#<span class="w"> </span>←<span class="w"> </span>Layer<span class="w"> </span><span class="m">3</span>:<span class="w"> </span>rebuilt<span class="w"> </span>every<span class="w"> </span>code<span class="w"> </span>change
+
+<span class="c"># Bad: Everything together (no caching benefit)</span>
+<span class="k">COPY</span><span class="w"> </span>.<span class="w"> </span>.<span class="w">                          </span>#<span class="w"> </span>←<span class="w"> </span>Layer<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>rebuilt<span class="w"> </span>every<span class="w"> </span>code<span class="w"> </span>change
+<span class="k">RUN</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt<span class="w">  </span>#<span class="w"> </span>←<span class="w"> </span>Layer<span class="w"> </span><span class="m">2</span>:<span class="w"> </span>ALSO<span class="w"> </span>rebuilt<span class="w"> </span><span class="o">(</span>cache<span class="w"> </span>invalidated<span class="o">)</span>
+</code></pre></div>
+
+<p>The good order means pip install only runs when <code>requirements.txt</code> changes. The bad order runs pip install on every single build.</p>
+<h4 id="the-build-context">The Build Context</h4>
+<p>When you run <code>docker build .</code>, Docker sends the entire directory (the <strong>build context</strong>) to the Docker daemon. If your directory contains large files you don't need in the image (like <code>.git/</code>, <code>node_modules/</code>, or data files), add them to a <code>.dockerignore</code> file to speed up builds.</p>
+<h4 id="expose-vs-port-mapping">EXPOSE vs. Port Mapping</h4>
+<p><code>EXPOSE 8000</code> in a Dockerfile is <strong>documentation</strong> — it tells other developers (and tools) that the application listens on port 8000. It doesn't actually publish the port.</p>
+<p><code>docker run -p 8000:8000</code> is what actually <strong>maps</strong> host port 8000 to container port 8000. Without this flag, the container's port is accessible only from within Docker's network.</p>
+<h4 id="cmd-vs-entrypoint">CMD vs. ENTRYPOINT</h4>
+<ul>
+<li><strong>CMD</strong> specifies the default command to run. Can be overridden at <code>docker run</code>.</li>
+<li><strong>ENTRYPOINT</strong> specifies a command that always runs. CMD provides default arguments to it.</li>
+</ul>
+<p>This project uses CMD, which makes it easy to override the startup command for debugging:</p>
+<div class="codehilite"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </span>chat-app<span class="w"> </span>/bin/bash<span class="w">  </span><span class="c1"># Override CMD to get a shell instead</span>
+</code></pre></div>
+
+<h3 id="base-images-slim-vs-full">Base Images: Slim vs. Full</h3>
+<table>
+<thead>
+<tr>
+<th>Base Image</th>
+<th>Size</th>
+<th>Includes</th>
+<th>Use When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>python:3.12</code></td>
+<td>~900MB</td>
+<td>Full Debian, compilers, docs</td>
+<td>You need to compile many C extensions</td>
+</tr>
+<tr>
+<td><code>python:3.12-slim</code></td>
+<td>~150MB</td>
+<td>Minimal Debian, Python only</td>
+<td>You can install only what you need</td>
+</tr>
+<tr>
+<td><code>python:3.12-alpine</code></td>
+<td>~50MB</td>
+<td>Alpine Linux, musl libc</td>
+<td>Maximum minimalism (may break some packages)</td>
+</tr>
+</tbody>
+</table>
+<p>The Zava project uses <code>slim</code> and explicitly installs the few system packages it needs (gcc, graphics libraries).</p>
+<h3 id="azure-container-registry-acr">Azure Container Registry (ACR)</h3>
+<p><strong>ACR</strong> is a private Docker registry hosted in Azure. The workflow:</p>
+<div class="codehilite"><pre><span></span><code><span class="nv">docker</span><span class="w"> </span><span class="nv">build</span><span class="w"> </span><span class="o">-</span><span class="nv">t</span><span class="w"> </span><span class="nv">chat</span><span class="o">-</span><span class="nv">app</span><span class="w"> </span>.<span class="w">                              </span>#<span class="w"> </span><span class="nv">Build</span><span class="w"> </span><span class="nv">locally</span>
+<span class="nv">docker</span><span class="w"> </span><span class="nv">tag</span><span class="w"> </span><span class="nv">chat</span><span class="o">-</span><span class="nv">app</span><span class="w"> </span><span class="nv">myacr</span>.<span class="nv">azurecr</span>.<span class="nv">io</span><span class="o">/</span><span class="nv">chat</span><span class="o">-</span><span class="nv">app</span>:<span class="nv">latest</span><span class="w">    </span>#<span class="w"> </span><span class="nv">Tag</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="nv">ACR</span>
+<span class="nv">az</span><span class="w"> </span><span class="nv">acr</span><span class="w"> </span><span class="nv">login</span><span class="w"> </span><span class="o">--</span><span class="nv">name</span><span class="w"> </span><span class="nv">myacr</span><span class="w">                                </span>#<span class="w"> </span><span class="nv">Authenticate</span>
+<span class="nv">docker</span><span class="w"> </span><span class="nv">push</span><span class="w"> </span><span class="nv">myacr</span>.<span class="nv">azurecr</span>.<span class="nv">io</span><span class="o">/</span><span class="nv">chat</span><span class="o">-</span><span class="nv">app</span>:<span class="nv">latest</span><span class="w">             </span>#<span class="w"> </span><span class="nv">Push</span><span class="w"> </span><span class="nv">to</span><span class="w"> </span><span class="nv">cloud</span>
+</code></pre></div>
+
+<p>Azure App Service can then pull this image and run it as a container. The <code>Continuous Deployment: On</code> setting means App Service automatically pulls new images when you push updates.</p>
+<h3 id="in-the-zava-project-the-complete-dockerfile">In the Zava Project: The Complete Dockerfile</h3>
+<div class="codehilite"><pre><span></span><code><span class="c"># src/Dockerfile</span>
+
+<span class="c"># Layer 1: Base image (slim = ~150MB vs ~900MB for full)</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.12-slim</span>
+
+<span class="c"># Layer 2: Security updates</span>
+<span class="k">RUN</span><span class="w"> </span>apt-get<span class="w"> </span>update<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>apt-get<span class="w"> </span>upgrade<span class="w"> </span>-y<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>pip<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>/var/lib/apt/lists/*
+
+<span class="c"># Set working directory for all subsequent commands</span>
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+
+<span class="c"># Layer 3: System dependencies (C compiler for numpy/pandas, graphics libs for Pillow)</span>
+<span class="k">RUN</span><span class="w"> </span>apt-get<span class="w"> </span>update<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>build-essential<span class="w"> </span>unixodbc-dev<span class="w"> </span>gcc<span class="w"> </span>g++<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>libgl1<span class="w"> </span>libglib2.0-0<span class="w"> </span>libsm6<span class="w"> </span>libxext6<span class="w"> </span>libxrender1<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>/var/lib/apt/lists/*
+
+<span class="c"># Layer 4: Python dependencies (cached unless requirements.txt changes)</span>
+<span class="k">COPY</span><span class="w"> </span>requirements.txt<span class="w"> </span>./
+<span class="k">RUN</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--no-cache-dir<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+
+<span class="c"># Layer 5: Application code (rebuilt every code change)</span>
+<span class="k">COPY</span><span class="w"> </span>.<span class="w"> </span>.
+<span class="k">COPY</span><span class="w"> </span>.env<span class="w"> </span>.env
+
+<span class="c"># Documentation + runtime config</span>
+<span class="k">EXPOSE</span><span class="w"> </span><span class="s">8000</span>
+<span class="k">ENV</span><span class="w"> </span><span class="nv">PORT</span><span class="o">=</span><span class="m">8000</span>
+
+<span class="c"># Start the FastAPI app with Uvicorn</span>
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;uvicorn&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;chat_app:app&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;--host&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;0.0.0.0&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;--port&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;8000&quot;</span><span class="p">]</span>
+</code></pre></div>
+
+<p><strong>Key packages from <code>requirements.txt</code>:</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="n">fastapi</span><span class="o">==</span><span class="mf">0.128.0</span><span class="w">          </span><span class="err">#</span><span class="w"> </span><span class="n">Web</span><span class="w"> </span><span class="n">framework</span>
+<span class="n">uvicorn</span><span class="o">[</span><span class="n">standard</span><span class="o">]==</span><span class="mf">0.40.0</span><span class="w"> </span><span class="err">#</span><span class="w"> </span><span class="n">ASGI</span><span class="w"> </span><span class="n">server</span>
+<span class="n">azure</span><span class="o">-</span><span class="n">ai</span><span class="o">-</span><span class="n">projects</span><span class="o">==</span><span class="mf">2.0.0</span><span class="n">b3</span><span class="w"> </span><span class="err">#</span><span class="w"> </span><span class="n">Foundry</span><span class="w"> </span><span class="n">agent</span><span class="w"> </span><span class="n">SDK</span>
+<span class="n">openai</span><span class="o">==</span><span class="mf">2.14.0</span><span class="w">            </span><span class="err">#</span><span class="w"> </span><span class="n">Azure</span><span class="w"> </span><span class="n">OpenAI</span><span class="w"> </span><span class="n">client</span>
+<span class="n">azure</span><span class="o">-</span><span class="n">cosmos</span><span class="o">==</span><span class="mf">4.14.3</span><span class="w">      </span><span class="err">#</span><span class="w"> </span><span class="n">Cosmos</span><span class="w"> </span><span class="n">DB</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">vector</span><span class="w"> </span><span class="k">search</span>
+<span class="n">mcp</span><span class="o">==</span><span class="mf">1.25.0</span><span class="w">               </span><span class="err">#</span><span class="w"> </span><span class="n">Model</span><span class="w"> </span><span class="n">Context</span><span class="w"> </span><span class="n">Protocol</span>
+<span class="n">fastmcp</span><span class="o">==</span><span class="mf">2.14.1</span><span class="w">           </span><span class="err">#</span><span class="w"> </span><span class="n">FastMCP</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="n">framework</span>
+<span class="n">orjson</span><span class="o">==</span><span class="mf">3.11.5</span><span class="w">            </span><span class="err">#</span><span class="w"> </span><span class="n">Fast</span><span class="w"> </span><span class="n">JSON</span><span class="w"> </span><span class="n">serialization</span>
+<span class="n">azure</span><span class="o">-</span><span class="k">identity</span><span class="o">==</span><span class="mf">1.25.2</span><span class="w">    </span><span class="err">#</span><span class="w"> </span><span class="n">DefaultAzureCredential</span>
+</code></pre></div>
+
+<hr />
+<h2 id="chapter-10-websockets-fastapi-real-time-communication">Chapter 10: WebSockets, FastAPI &amp; Real-Time Communication</h2>
+<h3 id="http-the-request-response-model">HTTP: The Request-Response Model</h3>
+<p>Standard web communication uses <strong>HTTP</strong>. The browser sends a request, the server sends a response, and the connection closes. Every interaction is a separate round trip:</p>
+<div class="codehilite"><pre><span></span><code>Browser  ──request──►  Server
+Browser  ◄──response──  Server
+(connection closed)
+</code></pre></div>
+
+<p>HTTP is perfect for loading web pages, submitting forms, and calling APIs. But for <strong>real-time chat</strong>, it has problems:
+- <strong>Overhead:</strong> Each message requires a new TCP connection (handshake, headers, etc.)
+- <strong>No server push:</strong> The server can only respond to requests — it can't proactively send data
+- <strong>Polling wasteful:</strong> To simulate real-time updates, the browser must repeatedly ask "anything new?" (polling)</p>
+<h3 id="websockets-persistent-bidirectional-communication">WebSockets: Persistent Bidirectional Communication</h3>
+<p><strong>WebSockets</strong> solve these problems by establishing a persistent, full-duplex connection:</p>
+<div class="codehilite"><pre><span></span><code><span class="nv">Browser</span><span class="w">  </span>──<span class="nv">handshake</span>──►<span class="w">  </span><span class="nv">Server</span><span class="w">    </span><span class="ss">(</span><span class="nv">one</span><span class="o">-</span><span class="nv">time</span><span class="w"> </span><span class="nv">HTTP</span><span class="w"> </span><span class="nv">upgrade</span><span class="ss">)</span>
+<span class="nv">Browser</span><span class="w">  </span>◄═══════════►<span class="w">  </span><span class="nv">Server</span><span class="w">    </span><span class="ss">(</span><span class="nv">persistent</span><span class="w"> </span><span class="nv">WebSocket</span><span class="w"> </span><span class="nv">connection</span><span class="ss">)</span>
+<span class="w">         </span>◄──<span class="w"> </span><span class="nv">message</span><span class="w"> </span>──<span class="w">           </span><span class="ss">(</span><span class="nv">either</span><span class="w"> </span><span class="nv">side</span><span class="w"> </span><span class="nv">can</span><span class="w"> </span><span class="k">send</span><span class="w"> </span><span class="nv">at</span><span class="w"> </span><span class="nv">any</span><span class="w"> </span><span class="nv">time</span><span class="ss">)</span>
+<span class="w">         </span>──<span class="w"> </span><span class="nv">message</span><span class="w"> </span>──►
+<span class="w">         </span>◄──<span class="w"> </span><span class="nv">message</span><span class="w"> </span>──
+<span class="w">         </span>◄──<span class="w"> </span><span class="nv">message</span><span class="w"> </span>──<span class="w">           </span><span class="ss">(</span><span class="nv">server</span><span class="w"> </span><span class="nv">can</span><span class="w"> </span><span class="k">send</span><span class="w"> </span><span class="nv">multiple</span><span class="w"> </span><span class="nv">without</span><span class="w"> </span><span class="nv">being</span><span class="w"> </span><span class="nv">asked</span><span class="ss">)</span>
+</code></pre></div>
+
+<p>Key characteristics:
+- <strong>Persistent:</strong> One connection for the entire session (no repeated handshakes)
+- <strong>Bidirectional:</strong> Both client and server can send messages independently
+- <strong>Low latency:</strong> Messages are sent immediately, no connection setup overhead
+- <strong>Stateful:</strong> The server can maintain state (shopping cart, chat history) tied to the connection</p>
+<h3 id="why-websockets-for-this-chat-app">Why WebSockets for This Chat App?</h3>
+<p>The Zava chat application needs real-time, stateful communication because:</p>
+<ol>
+<li>
+<p><strong>Agent responses take time.</strong> The server needs to classify intent, call an agent, possibly execute tools, and return results. WebSockets allow streaming intermediate messages ("Analyzing your image...") while processing continues.</p>
+</li>
+<li>
+<p><strong>Server-initiated messages.</strong> The customer loyalty agent runs in the background. When it completes, the server pushes the loyalty discount to the client without the client asking.</p>
+</li>
+<li>
+<p><strong>Session state.</strong> The shopping cart, discount tier, and conversation history persist for the entire WebSocket connection. No need for database-backed sessions or cookies.</p>
+</li>
+<li>
+<p><strong>Multiple messages per interaction.</strong> A single user message might trigger multiple server responses (an "analyzing..." message, the main response, and a loyalty notification).</p>
+</li>
+</ol>
+<h3 id="fastapi-the-web-framework">FastAPI: The Web Framework</h3>
+<p><strong>FastAPI</strong> is a modern Python web framework that natively supports both HTTP and WebSocket endpoints. Key features used in this project:</p>
+<ul>
+<li><strong><code>@app.get("/")</code></strong> — HTTP endpoint that serves the chat HTML page</li>
+<li><strong><code>@app.get("/health")</code></strong> — HTTP health check for Azure App Service monitoring</li>
+<li><strong><code>@app.websocket("/ws")</code></strong> — WebSocket endpoint for real-time chat</li>
+<li><strong><code>app.mount("/mcp-inventory/", ...)</code></strong> — Mount the MCP server as a sub-application</li>
+</ul>
+<p>FastAPI is built on <strong>Starlette</strong> (for web handling) and uses <strong>Pydantic</strong> (for data validation). It's one of the fastest Python web frameworks available, capable of handling thousands of concurrent connections.</p>
+<h3 id="asgi-and-uvicorn">ASGI and Uvicorn</h3>
+<p><strong>ASGI (Asynchronous Server Gateway Interface)</strong> is the protocol that connects the web server to the Python application. <strong>Uvicorn</strong> is the ASGI server — it handles TCP connections, TLS encryption, and HTTP/WebSocket protocols, while FastAPI handles routing and business logic.</p>
+<div class="codehilite"><pre><span></span><code>Internet → Uvicorn (network layer) → FastAPI (application layer) → Your code
+</code></pre></div>
+
+<p>The <code>async</code> keyword in the WebSocket handler is crucial — it allows the server to handle many concurrent WebSocket connections without blocking. While one connection waits for an agent response, others can be processing messages simultaneously.</p>
+<h3 id="session-state-management">Session State Management</h3>
+<p>Each WebSocket connection in the Zava app maintains independent session state:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># These variables exist for ONE user&#39;s connection</span>
+<span class="n">chat_history</span> <span class="o">=</span> <span class="n">deque</span><span class="p">(</span><span class="n">maxlen</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>        <span class="c1"># Window of recent conversation</span>
+<span class="n">persistent_cart</span> <span class="o">=</span> <span class="p">[]</span>                   <span class="c1"># Shopping cart contents</span>
+<span class="n">session_discount_percentage</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>       <span class="c1"># Loyalty discount</span>
+<span class="n">image_cache</span> <span class="o">=</span> <span class="p">{}</span>                       <span class="c1"># Cached image descriptions</span>
+<span class="n">raw_io_history</span> <span class="o">=</span> <span class="n">deque</span><span class="p">(</span><span class="n">maxlen</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>     <span class="c1"># Full request/response log</span>
+</code></pre></div>
+
+<p>When the connection closes (user navigates away, network drops), all state is lost. For a more persistent experience, you'd store state in a database — but for this workshop application, in-memory state is sufficient.</p>
+<h3 id="in-the-zava-project-the-websocket-handler">In the Zava Project: The WebSocket Handler</h3>
+<p><strong>Three endpoints</strong> (<code>src/chat_app.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="c1"># Mount MCP server as a sub-application</span>
+<span class="n">inventory_mcp_app</span> <span class="o">=</span> <span class="n">inventory_mcp</span><span class="o">.</span><span class="n">sse_app</span><span class="p">()</span>
+<span class="n">app</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="s2">&quot;/mcp-inventory/&quot;</span><span class="p">,</span> <span class="n">inventory_mcp_app</span><span class="p">)</span>
+
+<span class="c1"># HTTP: Serve the chat page</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">():</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;chat.html&#39;</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">HTMLResponse</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+
+<span class="c1"># HTTP: Health check for Azure App Service monitoring</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/health&quot;</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">health_check</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;healthy&quot;</span><span class="p">,</span> <span class="s2">&quot;timestamp&quot;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()}</span>
+
+<span class="c1"># WebSocket: Real-time chat</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">websocket</span><span class="p">(</span><span class="s2">&quot;/ws&quot;</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">websocket_endpoint</span><span class="p">(</span><span class="n">websocket</span><span class="p">:</span> <span class="n">WebSocket</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">websocket</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+    <span class="c1"># ... session state and message loop ...</span>
+</code></pre></div>
+
+<p><strong>Session state</strong> (created fresh per connection):</p>
+<div class="codehilite"><pre><span></span><code><span class="nd">@app</span><span class="o">.</span><span class="n">websocket</span><span class="p">(</span><span class="s2">&quot;/ws&quot;</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">websocket_endpoint</span><span class="p">(</span><span class="n">websocket</span><span class="p">:</span> <span class="n">WebSocket</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">websocket</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+
+    <span class="c1"># Per-session state — lives for the duration of this WebSocket connection</span>
+    <span class="n">chat_history</span><span class="p">:</span> <span class="n">Deque</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="n">deque</span><span class="p">(</span><span class="n">maxlen</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>  <span class="c1"># Last 5 turns</span>
+    <span class="n">customer_loyalty_executed</span> <span class="o">=</span> <span class="kc">False</span>    <span class="c1"># Only run loyalty check once</span>
+    <span class="n">session_discount_percentage</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>     <span class="c1"># Persists across all messages</span>
+    <span class="n">persistent_image_url</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>            <span class="c1"># Last uploaded image</span>
+    <span class="n">persistent_cart</span> <span class="o">=</span> <span class="p">[]</span>                 <span class="c1"># Shopping cart state</span>
+    <span class="n">image_cache</span> <span class="o">=</span> <span class="p">{}</span>                     <span class="c1"># Avoid re-analyzing images</span>
+    <span class="n">bad_prompts</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>                  <span class="c1"># Track rejected prompts</span>
+    <span class="n">raw_io_history</span> <span class="o">=</span> <span class="n">deque</span><span class="p">(</span><span class="n">maxlen</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>   <span class="c1"># Full I/O log for cart manager</span>
+</code></pre></div>
+
+<p><strong>Message loop</strong> (receive → process → respond):</p>
+<div class="codehilite"><pre><span></span><code>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="c1"># 1. Receive JSON from browser</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="k">await</span> <span class="n">websocket</span><span class="o">.</span><span class="n">receive_text</span><span class="p">()</span>
+        <span class="n">parsed</span> <span class="o">=</span> <span class="n">orjson</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>       <span class="c1"># Fast JSON parsing</span>
+        <span class="n">user_message</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;message&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">image_url</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;image_url&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">conversation_history</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;conversation_history&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="c1"># 2. Classify intent → pick agent</span>
+        <span class="n">intent_result</span> <span class="o">=</span> <span class="n">handoff_service</span><span class="o">.</span><span class="n">classify_intent</span><span class="p">(</span><span class="n">user_message</span><span class="p">,</span> <span class="n">session_id</span><span class="p">,</span> <span class="n">formatted_history</span><span class="p">)</span>
+        <span class="n">agent_name</span> <span class="o">=</span> <span class="n">intent_result</span><span class="p">[</span><span class="s2">&quot;agent_id&quot;</span><span class="p">]</span>
+
+        <span class="c1"># 3. Execute agent (context enrichment + agent call + response parsing)</span>
+        <span class="c1"># ... (see TUTORIAL.md for full details)</span>
+
+        <span class="c1"># 4. Send response back to browser</span>
+        <span class="n">response_json</span> <span class="o">=</span> <span class="n">fast_json_dumps</span><span class="p">({</span><span class="o">**</span><span class="n">parsed_response</span><span class="p">,</span> <span class="s2">&quot;cart&quot;</span><span class="p">:</span> <span class="n">persistent_cart</span><span class="p">})</span>
+        <span class="k">await</span> <span class="n">websocket</span><span class="o">.</span><span class="n">send_text</span><span class="p">(</span><span class="n">response_json</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Background loyalty task</strong> (runs once, sends result later):</p>
+<div class="codehilite"><pre><span></span><code>    <span class="c1"># Fire-and-forget at session start</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">customer_loyalty_executed</span><span class="p">:</span>
+        <span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">run_customer_loyalty_task</span><span class="p">(</span><span class="n">customer_id</span><span class="p">))</span>
+        <span class="n">customer_loyalty_executed</span> <span class="o">=</span> <span class="kc">True</span>
+</code></pre></div>
+
+<p><strong>The frontend WebSocket client</strong> (<code>src/chat.html</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// Auto-detect protocol (ws for http, wss for https)</span>
+<span class="kd">var</span><span class="w"> </span><span class="nx">ws_scheme</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">protocol</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s2">&quot;https:&quot;</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s2">&quot;wss&quot;</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;ws&quot;</span><span class="p">;</span>
+<span class="kd">var</span><span class="w"> </span><span class="nx">ws</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">WebSocket</span><span class="p">(</span><span class="nx">ws_scheme</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">&quot;://&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">host</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s2">&quot;/ws&quot;</span><span class="p">);</span>
+
+<span class="c1">// Receive messages from server</span>
+<span class="nx">ws</span><span class="p">.</span><span class="nx">onmessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">function</span><span class="p">(</span><span class="nx">event</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">answer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">answer</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">agent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">agent</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;Bot&#39;</span><span class="p">;</span>
+<span class="w">    </span><span class="nx">addMessage</span><span class="p">(</span><span class="nx">agent</span><span class="p">,</span><span class="w"> </span><span class="nx">answer</span><span class="p">);</span><span class="w">             </span><span class="c1">// Display in chat UI</span>
+<span class="w">    </span><span class="nx">addDebugEntry</span><span class="p">(</span><span class="s1">&#39;incoming&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Server Response&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="p">);</span><span class="w">  </span><span class="c1">// Show raw JSON</span>
+<span class="p">};</span>
+
+<span class="c1">// Send messages to server</span>
+<span class="kd">function</span><span class="w"> </span><span class="nx">sendMessage</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">conversation_history</span><span class="o">:</span><span class="w"> </span><span class="nx">formatConversationHistory</span><span class="p">(),</span>
+<span class="w">        </span><span class="nx">has_image</span><span class="o">:</span><span class="w"> </span><span class="nx">hasImage</span><span class="p">,</span>
+<span class="w">        </span><span class="nx">customer_id</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;CUST001&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nx">message</span><span class="o">:</span><span class="w"> </span><span class="nx">message</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">hasImage</span><span class="p">)</span><span class="w"> </span><span class="nx">payload</span><span class="p">.</span><span class="nx">image_url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">imageUrlInput</span><span class="p">.</span><span class="nx">value</span><span class="p">;</span>
+<span class="w">    </span><span class="nx">ws</span><span class="p">.</span><span class="nx">send</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">payload</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<hr />
+<h2 id="chapter-11-multimodal-ai-processing-text-and-images-together">Chapter 11: Multimodal AI — Processing Text and Images Together</h2>
+<h3 id="what-is-multimodal-ai">What Is Multimodal AI?</h3>
+<p><strong>Multimodal AI</strong> refers to models that can process multiple types of input — typically text and images, but potentially also audio, video, and structured data. GPT-4o is a multimodal model: you can send it both text and images in a single request, and it will reason about them together.</p>
+<h3 id="how-image-understanding-works-in-this-project">How Image Understanding Works in This Project</h3>
+<p>The Zava app uses a <strong>two-stage pipeline</strong> for image processing:</p>
+<p><strong>Stage 1: Image Analysis (Vision Model)</strong></p>
+<p>When a user provides an image URL, the app sends it to a GPT model with vision capabilities:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">chat_prompt</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;You are a helpful assistant that summarizes image content.&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">image_url</span><span class="p">}</span>
+<span class="p">]</span>
+<span class="n">description</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">deployment</span><span class="p">,</span> <span class="n">messages</span><span class="o">=</span><span class="n">chat_prompt</span><span class="p">)</span>
+</code></pre></div>
+
+<p>The model returns a textual description: "A modern living room with blue walls, a white sofa, and hardwood floors."</p>
+<p><strong>Stage 2: Context Enrichment</strong></p>
+<p>This text description is then appended to the user's message before sending it to the agent:</p>
+<div class="codehilite"><pre><span></span><code><span class="nv">User</span><span class="w"> </span><span class="nv">message</span>:<span class="w"> </span><span class="s2">&quot;What paint would match this room?&quot;</span>
+<span class="o">+</span><span class="w"> </span><span class="nv">Image</span><span class="w"> </span><span class="nv">description</span>:<span class="w"> </span><span class="s2">&quot;A modern living room with blue walls, white sofa, hardwood floors&quot;</span>
+<span class="o">=</span><span class="w"> </span><span class="nv">Enriched</span><span class="w"> </span><span class="nv">context</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="nv">the</span><span class="w"> </span><span class="nv">agent</span>
+</code></pre></div>
+
+<p>The agent (Cora or Interior Designer) now knows what the image looks like and can make relevant recommendations.</p>
+<h3 id="caching-image-descriptions">Caching Image Descriptions</h3>
+<p>Analyzing an image takes time and costs tokens. If the user sends multiple messages about the same image, re-analyzing it would be wasteful. The app caches descriptions:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">image_cache</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># Key: image URL, Value: text description</span>
+</code></pre></div>
+
+<p>The first time an image URL appears, it's analyzed and cached. Subsequent references use the cached description instantly.</p>
+<h3 id="pre-fetching">Pre-Fetching</h3>
+<p>The app also <strong>pre-fetches</strong> image descriptions asynchronously. When a user uploads an image URL, the analysis starts immediately in the background — even before the user sends their actual question. By the time the question arrives, the description is often already cached.</p>
+<h3 id="in-the-zava-project-vision-analysis-context-enrichment">In the Zava Project: Vision Analysis &amp; Context Enrichment</h3>
+<p><strong>Image analysis</strong> (<code>src/app/tools/understandImage.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">openai</span><span class="w"> </span><span class="kn">import</span> <span class="n">AzureOpenAI</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">AzureOpenAI</span><span class="p">(</span>
+    <span class="n">azure_endpoint</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;gpt_endpoint&quot;</span><span class="p">),</span>
+    <span class="n">api_key</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;gpt_api_key&quot;</span><span class="p">),</span>
+    <span class="n">api_version</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;gpt_api_version&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_image_description</span><span class="p">(</span><span class="n">image_url</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Send an image URL to GPT vision model, get a text description back.&quot;&quot;&quot;</span>
+    <span class="n">chat_prompt</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;text&quot;</span><span class="p">,</span>
+                         <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;You are a helpful assistant that summarizes image content. Respond in Markdown.&quot;</span><span class="p">}]</span>
+        <span class="p">},</span>
+        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">image_url</span><span class="p">}</span>
+    <span class="p">]</span>
+    <span class="n">completion</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="n">deployment</span><span class="p">,</span>
+        <span class="n">messages</span><span class="o">=</span><span class="n">chat_prompt</span><span class="p">,</span>
+        <span class="n">max_completion_tokens</span><span class="o">=</span><span class="mi">10000</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">completion</span><span class="o">.</span><span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">message</span><span class="o">.</span><span class="n">content</span>
+</code></pre></div>
+
+<p><strong>Caching with pre-fetch</strong> (<code>src/chat_app.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_cached_image_description</span><span class="p">(</span><span class="n">image_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">image_cache</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get image description with caching.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">image_url</span> <span class="ow">in</span> <span class="n">image_cache</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">image_cache</span><span class="p">[</span><span class="n">image_url</span><span class="p">]</span>   <span class="c1"># Cache hit — instant return</span>
+
+    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="k">await</span> <span class="n">loop</span><span class="o">.</span><span class="n">run_in_executor</span><span class="p">(</span><span class="n">thread_pool</span><span class="p">,</span> <span class="n">get_image_description</span><span class="p">,</span> <span class="n">image_url</span><span class="p">)</span>
+    <span class="n">image_cache</span><span class="p">[</span><span class="n">image_url</span><span class="p">]</span> <span class="o">=</span> <span class="n">description</span>  <span class="c1"># Store for future requests</span>
+    <span class="k">return</span> <span class="n">description</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">pre_fetch_image_description</span><span class="p">(</span><span class="n">image_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">image_cache</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Start analysis immediately when image URL is received.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">image_url</span> <span class="ow">and</span> <span class="n">image_url</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">image_cache</span><span class="p">:</span>
+        <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span>
+        <span class="n">description</span> <span class="o">=</span> <span class="k">await</span> <span class="n">loop</span><span class="o">.</span><span class="n">run_in_executor</span><span class="p">(</span><span class="n">thread_pool</span><span class="p">,</span> <span class="n">get_image_description</span><span class="p">,</span> <span class="n">image_url</span><span class="p">)</span>
+        <span class="n">image_cache</span><span class="p">[</span><span class="n">image_url</span><span class="p">]</span> <span class="o">=</span> <span class="n">description</span>
+</code></pre></div>
+
+<p><strong>Product search with Cosmos DB vector search</strong> (<code>src/app/tools/aiSearchTools.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">azure.cosmos</span><span class="w"> </span><span class="kn">import</span> <span class="n">CosmosClient</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">product_recommendations</span><span class="p">(</span><span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">top_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">):</span>
+    <span class="c1"># 1. Generate embedding for the user&#39;s query</span>
+    <span class="n">query_vector</span> <span class="o">=</span> <span class="n">get_request_embedding</span><span class="p">(</span><span class="n">question</span><span class="p">)</span>
+
+    <span class="c1"># 2. Run Cosmos DB vector search (finds products semantically similar to the query)</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;SELECT c.id, c.ProductID, c.ProductName, c.ProductCategory, &quot;</span>
+        <span class="s2">&quot;c.ProductDescription, c.ImageURL, c.Price &quot;</span>
+        <span class="s2">&quot;FROM c &quot;</span>
+        <span class="s2">&quot;ORDER BY VECTORDISTANCE(c.request_vector, @vector) &quot;</span>
+    <span class="p">)</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">_container</span><span class="o">.</span><span class="n">query_items</span><span class="p">(</span>
+        <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+        <span class="n">parameters</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;@vector&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="n">query_vector</span><span class="p">}],</span>
+        <span class="n">max_item_count</span><span class="o">=</span><span class="n">top_k</span>
+    <span class="p">))</span>
+    <span class="k">return</span> <span class="n">results</span>
+</code></pre></div>
+
+<p><strong>Context enrichment pipeline</strong> (<code>src/chat_app.py</code>):</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Build enriched message with all available context</span>
+<span class="n">enriched_message</span> <span class="o">=</span> <span class="n">user_message</span>
+<span class="k">if</span> <span class="n">image_data</span><span class="p">:</span>
+    <span class="n">enriched_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">Image description: </span><span class="si">{</span><span class="n">image_data</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="k">if</span> <span class="n">products</span><span class="p">:</span>
+    <span class="n">enriched_message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Available products: </span><span class="si">{</span><span class="n">products</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+
+<hr />
+<h2 id="chapter-12-putting-it-all-together-the-zava-architecture">Chapter 12: Putting It All Together — The Zava Architecture</h2>
+<h3 id="the-complete-request-flow">The Complete Request Flow</h3>
+<p>Here's what happens when a user types "Show me blue paint options" with an image of their kitchen attached:</p>
+<div class="codehilite"><pre><span></span><code><span class="mf">1.</span><span class="w"> </span><span class="n">BROWSER</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">WebSocket</span><span class="w"> </span><span class="n">sends</span><span class="w"> </span><span class="n">JSON</span><span class="p">:</span>
+<span class="w">   </span><span class="err">{</span><span class="n">message</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Show me blue paint options&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">image_url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://...kitchen.jpg&quot;</span><span class="err">}</span>
+
+<span class="mf">2.</span><span class="w"> </span><span class="n">CHAT_APP</span><span class="mf">.</span><span class="n">PY</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">Parses</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">message</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">Pre</span><span class="o">-</span><span class="n">fetches</span><span class="w"> </span><span class="n">image</span><span class="w"> </span><span class="n">description</span><span class="w"> </span><span class="p">(</span><span class="n">async</span><span class="p">)</span>
+
+<span class="mf">3.</span><span class="w"> </span><span class="n">HANDOFF</span><span class="w"> </span><span class="n">SERVICE</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">Classifies</span><span class="w"> </span><span class="nb">int</span><span class="n">ent</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">Sends</span><span class="w"> </span><span class="kr">to</span><span class="w"> </span><span class="n">handoff</span><span class="o">-</span><span class="n">service</span><span class="w"> </span><span class="n">agent</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="n">Foundry</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="kr">Return</span><span class="n">s</span><span class="p">:</span><span class="w"> </span><span class="err">{</span><span class="n">domain</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;cora&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">confidence</span><span class="p">:</span><span class="w"> </span><span class="mf">0.85</span><span class="err">}</span>
+
+<span class="mf">4.</span><span class="w"> </span><span class="kr">CONT</span><span class="n">EXT</span><span class="w"> </span><span class="n">ENRICHMENT</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="kr">Get</span><span class="n">s</span><span class="w"> </span><span class="n">cached</span><span class="w"> </span><span class="n">image</span><span class="w"> </span><span class="n">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;A modern kitchen with white cabinets and beige walls&quot;</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">Searches</span><span class="w"> </span><span class="nb">Cos</span><span class="n">mos</span><span class="w"> </span><span class="n">DB</span><span class="w"> </span><span class="kr">for</span><span class="w"> </span><span class="n">blue</span><span class="w"> </span><span class="n">paint</span><span class="w"> </span><span class="n">products</span><span class="w"> </span><span class="p">(</span><span class="n">vector</span><span class="w"> </span><span class="n">search</span><span class="p">)</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">Builds</span><span class="w"> </span><span class="n">enriched</span><span class="w"> </span><span class="n">message</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">user</span><span class="w"> </span><span class="n">text</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">image</span><span class="w"> </span><span class="n">description</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">product</span><span class="w"> </span><span class="kd">data</span>
+
+<span class="mf">5.</span><span class="w"> </span><span class="n">AGENT</span><span class="w"> </span><span class="n">PROCESSOR</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">Sends</span><span class="w"> </span><span class="n">enriched</span><span class="w"> </span><span class="n">message</span><span class="w"> </span><span class="kr">to</span><span class="w"> </span><span class="n">Cora</span><span class="w"> </span><span class="n">agent</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="n">Foundry</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">Cora</span><span class="w"> </span><span class="n">decides</span><span class="w"> </span><span class="kr">to</span><span class="w"> </span><span class="n">call</span><span class="w"> </span><span class="n">mcp_product_recommendations</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">AgentProcessor</span><span class="w"> </span><span class="nb">int</span><span class="n">ercepts</span><span class="p">,</span><span class="w"> </span><span class="n">calls</span><span class="w"> </span><span class="n">MCP</span><span class="w"> </span><span class="n">Client</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">MCP</span><span class="w"> </span><span class="n">Client</span><span class="w"> </span><span class="n">calls</span><span class="w"> </span><span class="n">MCP</span><span class="w"> </span><span class="n">Server</span><span class="err">&#39;</span><span class="n">s</span><span class="w"> </span><span class="kr">get</span><span class="n">_product_recommendations</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">MCP</span><span class="w"> </span><span class="n">Server</span><span class="w"> </span><span class="n">queries</span><span class="w"> </span><span class="nb">Cos</span><span class="n">mos</span><span class="w"> </span><span class="n">DB</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">vector</span><span class="w"> </span><span class="n">search</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">Results</span><span class="w"> </span><span class="n">flow</span><span class="w"> </span><span class="n">back</span><span class="w"> </span><span class="n">through</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">chain</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">Cora</span><span class="w"> </span><span class="n">generates</span><span class="w"> </span><span class="n">final</span><span class="w"> </span><span class="n">response</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">product</span><span class="w"> </span><span class="n">recommendations</span>
+
+<span class="mf">6.</span><span class="w"> </span><span class="n">RESPONSE</span><span class="w"> </span><span class="n">PROCESSING</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">Parses</span><span class="w"> </span><span class="n">Cora</span><span class="err">&#39;</span><span class="n">s</span><span class="w"> </span><span class="n">JSON</span><span class="w"> </span><span class="n">response</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">Adds</span><span class="w"> </span><span class="n">session</span><span class="w"> </span><span class="n">discount</span><span class="w"> </span><span class="n">percentage</span>
+<span class="w">   </span><span class="err">→</span><span class="w"> </span><span class="n">Updates</span><span class="w"> </span><span class="n">conversation</span><span class="w"> </span><span class="n">history</span>
+
+<span class="mf">7.</span><span class="w"> </span><span class="n">BROWSER</span><span class="w"> </span><span class="err">←</span><span class="w"> </span><span class="n">WebSocket</span><span class="w"> </span><span class="n">receives</span><span class="p">:</span>
+<span class="w">   </span><span class="err">{</span><span class="n">answer</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Here are some blue paint options...&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">products</span><span class="p">:</span><span class="w"> </span><span class="err">[</span><span class="mf">...</span><span class="err">]</span><span class="p">,</span><span class="w"> </span><span class="n">agent</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;cora&quot;</span><span class="err">}</span>
+</code></pre></div>
+
+<h3 id="what-each-file-does">What Each File Does</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Role</th>
+<th>When It Runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent_initializer.py</code></td>
+<td>Factory function to create agents in Foundry</td>
+<td>Once (deployment)</td>
+</tr>
+<tr>
+<td><code>*Agent_initializer.py</code></td>
+<td>Configures a specific agent and pushes to Foundry</td>
+<td>Once (deployment)</td>
+</tr>
+<tr>
+<td><code>agent_processor.py</code></td>
+<td>Manages agent conversations and tool execution</td>
+<td>Every message</td>
+</tr>
+<tr>
+<td><code>agent_service.py</code></td>
+<td>Caches AgentProcessor instances</td>
+<td>Every message</td>
+</tr>
+<tr>
+<td><code>handoff_service.py</code></td>
+<td>Classifies intent and routes to agents</td>
+<td>Every message</td>
+</tr>
+<tr>
+<td><code>chat_app.py</code></td>
+<td>Main FastAPI app, WebSocket handler, orchestration</td>
+<td>Always running</td>
+</tr>
+<tr>
+<td><code>chat.html</code></td>
+<td>Frontend UI with WebSocket client</td>
+<td>In browser</td>
+</tr>
+<tr>
+<td><code>mcp_inventory_server.py</code></td>
+<td>MCP server exposing tools</td>
+<td>Always running</td>
+</tr>
+<tr>
+<td><code>mcp_inventory_client.py</code></td>
+<td>MCP client connecting to server</td>
+<td>When tools are called</td>
+</tr>
+<tr>
+<td><code>aiSearchTools.py</code></td>
+<td>Cosmos DB vector search for products</td>
+<td>When products searched</td>
+</tr>
+<tr>
+<td><code>imageCreationTool.py</code></td>
+<td>DALL-E image generation + Blob upload</td>
+<td>When images created</td>
+</tr>
+<tr>
+<td><code>understandImage.py</code></td>
+<td>GPT vision model for image analysis</td>
+<td>When images uploaded</td>
+</tr>
+<tr>
+<td><code>discountLogic.py</code></td>
+<td>Customer discount calculation</td>
+<td>When loyalty checked</td>
+</tr>
+<tr>
+<td><code>inventoryCheck.py</code></td>
+<td>Simulated inventory data</td>
+<td>When stock checked</td>
+</tr>
+<tr>
+<td><code>Dockerfile</code></td>
+<td>Container image definition</td>
+<td>At build time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="design-principles-observed">Design Principles Observed</h3>
+<p>Looking at the project as a whole, several software engineering principles emerge:</p>
+<ol>
+<li>
+<p><strong>Separation of Concerns.</strong> Each file has one job. Prompts are in <code>.txt</code> files, tools are in the <code>tools/</code> directory, agents are in <code>agents/</code>, services are in <code>services/</code>.</p>
+</li>
+<li>
+<p><strong>Factory Pattern.</strong> <code>initialize_agent()</code> creates any agent. <code>create_function_tool_for_agent()</code> creates any tool set. <code>get_or_create_agent_processor()</code> creates any processor.</p>
+</li>
+<li>
+<p><strong>Caching Everywhere.</strong> Image descriptions, tool configurations, AgentProcessor instances, and MCP client connections are all cached to reduce latency and cost.</p>
+</li>
+<li>
+<p><strong>Graceful Degradation.</strong> If the Handoff Service fails, it falls back to the current domain. If image analysis fails, the conversation continues without image context. If a tool call fails, the error is caught and a user-friendly message is shown.</p>
+</li>
+<li>
+<p><strong>Async by Default.</strong> The WebSocket handler, image processing, loyalty checks, and agent execution are all async, allowing concurrent handling of multiple users.</p>
+</li>
+</ol>
+<hr />
+<h2 id="glossary">Glossary</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Agent</strong></td>
+<td>An LLM wrapped with instructions, tools, and memory that can take actions and maintain state</td>
+</tr>
+<tr>
+<td><strong>AI Foundry</strong></td>
+<td>Microsoft's cloud platform (formerly Azure AI Studio) for deploying and managing AI agents</td>
+</tr>
+<tr>
+<td><strong>ASGI</strong></td>
+<td>Asynchronous Server Gateway Interface — the protocol that Uvicorn/FastAPI use for async web serving</td>
+</tr>
+<tr>
+<td><strong>Azure Container Registry (ACR)</strong></td>
+<td>A private Docker registry in Azure for storing container images</td>
+</tr>
+<tr>
+<td><strong>Completion</strong></td>
+<td>A single API call to an LLM: input (prompt) → output (generated text)</td>
+</tr>
+<tr>
+<td><strong>Constrained Decoding</strong></td>
+<td>A technique that restricts an LLM's token generation to produce valid structured output</td>
+</tr>
+<tr>
+<td><strong>Context Enrichment</strong></td>
+<td>The process of adding image descriptions, product data, and history to a user's message before sending it to an agent</td>
+</tr>
+<tr>
+<td><strong>Context Window</strong></td>
+<td>The maximum number of tokens an LLM can process in a single request</td>
+</tr>
+<tr>
+<td><strong>Conversation Thread</strong></td>
+<td>A persistent sequence of messages between a user and an agent, maintaining context across turns</td>
+</tr>
+<tr>
+<td><strong>DefaultAzureCredential</strong></td>
+<td>An Azure Identity class that automatically tries multiple authentication methods (managed identity, CLI, environment variables)</td>
+</tr>
+<tr>
+<td><strong>Docker Container</strong></td>
+<td>A running instance of a Docker image</td>
+</tr>
+<tr>
+<td><strong>Docker Image</strong></td>
+<td>A read-only blueprint containing an application and all of its dependencies</td>
+</tr>
+<tr>
+<td><strong>Dockerfile</strong></td>
+<td>A text file containing instructions for building a Docker image</td>
+</tr>
+<tr>
+<td><strong>FastAPI</strong></td>
+<td>A modern Python web framework for building APIs with automatic documentation and async support</td>
+</tr>
+<tr>
+<td><strong>Function Calling</strong></td>
+<td>An LLM capability where the model generates structured requests to call external functions</td>
+</tr>
+<tr>
+<td><strong>FunctionTool</strong></td>
+<td>An Azure AI SDK class that defines a callable function's name, description, and parameter schema</td>
+</tr>
+<tr>
+<td><strong>Handoff</strong></td>
+<td>The process of routing a user's message from one agent to another based on intent classification</td>
+</tr>
+<tr>
+<td><strong>In-Context Learning</strong></td>
+<td>An LLM's ability to learn patterns from examples provided in the prompt (without retraining)</td>
+</tr>
+<tr>
+<td><strong>Intent Classification</strong></td>
+<td>Analyzing a user's message to determine which domain/agent should handle it</td>
+</tr>
+<tr>
+<td><strong>JSON Schema</strong></td>
+<td>A standard for describing the structure of JSON data (field names, types, constraints)</td>
+</tr>
+<tr>
+<td><strong>Layer (Docker)</strong></td>
+<td>Each instruction in a Dockerfile creates a cached layer; unchanged layers are reused across builds</td>
+</tr>
+<tr>
+<td><strong>LLM (Large Language Model)</strong></td>
+<td>A neural network trained on text data that can understand and generate language (e.g., GPT-4o)</td>
+</tr>
+<tr>
+<td><strong>MCP (Model Context Protocol)</strong></td>
+<td>An open standard for connecting AI applications with external tools and data sources</td>
+</tr>
+<tr>
+<td><strong>Managed Identity</strong></td>
+<td>An Azure feature that gives services (like App Service) an identity for authenticating to other Azure services without passwords</td>
+</tr>
+<tr>
+<td><strong>Multi-Agent System</strong></td>
+<td>An architecture using multiple specialized agents, each handling a specific domain</td>
+</tr>
+<tr>
+<td><strong>Multimodal</strong></td>
+<td>Able to process multiple types of input (text, images, audio)</td>
+</tr>
+<tr>
+<td><strong>Orchestration</strong></td>
+<td>The process of coordinating multiple agents, deciding which one handles each request</td>
+</tr>
+<tr>
+<td><strong>Prompt (System)</strong></td>
+<td>Instructions given to an LLM that define its role, behavior, and output format</td>
+</tr>
+<tr>
+<td><strong>Pydantic</strong></td>
+<td>A Python library for data validation using type annotations; used to define structured output schemas</td>
+</tr>
+<tr>
+<td><strong>SSE (Server-Sent Events)</strong></td>
+<td>A protocol for servers to push data to clients over HTTP; used by MCP for tool communication</td>
+</tr>
+<tr>
+<td><strong>Structured Output</strong></td>
+<td>An LLM feature that guarantees the response conforms to a specific JSON schema</td>
+</tr>
+<tr>
+<td><strong>Temperature</strong></td>
+<td>A parameter controlling randomness in LLM output (0 = deterministic, 1 = creative)</td>
+</tr>
+<tr>
+<td><strong>Token</strong></td>
+<td>The basic unit of text that an LLM processes; roughly corresponds to a word or word-part</td>
+</tr>
+<tr>
+<td><strong>Tool Use Loop</strong></td>
+<td>The cycle of: model requests function call → code executes → result fed back → model generates final answer</td>
+</tr>
+<tr>
+<td><strong>Uvicorn</strong></td>
+<td>An ASGI web server that runs FastAPI applications</td>
+</tr>
+<tr>
+<td><strong>Vector Search</strong></td>
+<td>A database query technique that finds items similar to a query by comparing mathematical representations (embeddings)</td>
+</tr>
+<tr>
+<td><strong>WebSocket</strong></td>
+<td>A protocol for persistent, bi-directional communication between client and server</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
