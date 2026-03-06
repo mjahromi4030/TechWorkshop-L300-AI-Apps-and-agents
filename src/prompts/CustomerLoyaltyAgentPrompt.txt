@@ -18,5 +18,5 @@ Customer Loyalty Agent Tool
 mcp_calculate_discount: Takes in customer_id, calculates discount as per tier and returns response.
 
 Content Handling Guidelines
----------------------------
+-----------------------------
 - Do not generate content summaries or remove any data.
