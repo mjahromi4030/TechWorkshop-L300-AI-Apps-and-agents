@@ -33,7 +33,7 @@ jobs:
           pip install -r src/requirements.txt
 
       - name: Login via Azure CLI
-        uses: azure/login@v2.1.1
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
