@@ -1,0 +1,35 @@
+# This workflow will build and push a Docker image to Azure Container Registry
+
+name: Build and Deploy to ACR
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Log in to Azure
+      uses: azure/login@v1
+      with:
+        credentials: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Build Docker image
+      run: |
+        docker build -f src/Dockerfile -t myapp:${{ github.sha }} .
+
+    - name: Run Docker container
+      run: |
+        docker run -d --name mycontainer myapp:${{ github.sha }}
+        echo "ENV_VAR=${{ secrets.MY_ENV_VAR }}" > .env
+
+    - name: Push Docker image to ACR
+      run: |
+        docker tag myapp:${{ github.sha }} myregistry.azurecr.io/myapp:${{ github.sha }}
+        docker push myregistry.azurecr.io/myapp:${{ github.sha }}
